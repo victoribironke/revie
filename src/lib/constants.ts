@@ -1,6 +1,6 @@
 export const BASE_URL =
   process.env.NODE_ENV === "production"
-    ? "https://revie.app"
+    ? "https://revie-backend-91lm.onrender.com"
     : "https://dogfish-viable-instantly.ngrok-free.app";
 
 export const WEBHOOK_URL = BASE_URL + "/telegram-webhook";
@@ -11,4 +11,8 @@ export const CREDENTIALS = {
   supabase_service_role_key: process.env.SUPABASE_SERVICE_ROLE_KEY,
 
   telegram_bot_token: process.env.TELEGRAM_BOT_TOKEN,
+};
+
+export const TABLES = {
+  users: "users",
 };
