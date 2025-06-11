@@ -3,17 +3,6 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
-  "scripts": {
-    "start": "nodemon src/index.ts",
-    "build": "rimraf dist && bun build src/index.ts --outdir ./dist --target=bun",
-    "ts-check": "tsc --project tsconfig.json",
-    "add-build": "git add dist"
-  },
-  "pre-commit": [
-    "ts-check",
-    "build",
-    "add-build"
-  ],
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -24,8 +13,6 @@
     "@supabase/supabase-js": "^2.50.0",
     "@types/node-telegram-bot-api": "^0.64.9",
     "dotenv": "^16.5.0",
-    "node-telegram-bot-api": "^0.66.0",
-    "pre-commit": "^1.2.2",
-    "rimraf": "^6.0.1"
+    "node-telegram-bot-api": "^0.66.0"
   }
 }

@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { serve } from "bun";
-import { bot } from "./services/telegram";
-import { TABLES, WEBHOOK_URL } from "./lib/constants";
+import { bot } from "./src/services/telegram";
+import { TABLES, WEBHOOK_URL } from "./src/lib/constants";
 import type { Update } from "node-telegram-bot-api";
-import { supabase } from "./services/supabase";
+import { supabase } from "./src/services/supabase";
 
 const PORT = process.env.PORT || 3000;
 
