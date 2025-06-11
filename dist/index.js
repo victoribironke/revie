@@ -57813,6 +57813,10 @@ bot.setWebHook(WEBHOOK_URL).then(() => {
     port: PORT,
     fetch: async (request) => {
       const url = new URL(request.url);
+      console.log("Received request:", request);
+      if (request.method === "GET" && url.pathname === "/") {
+        return new Response("Hello, world!", { status: 200 });
+      }
       if (request.method === "POST" && url.pathname === "/telegram-webhook") {
         try {
           const update = await request.json();
