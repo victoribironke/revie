@@ -12,7 +12,8 @@ export const CREDENTIALS = {
   supabase_anon_key: process.env.SUPABASE_ANON_KEY,
   supabase_service_role_key: process.env.SUPABASE_SERVICE_ROLE_KEY,
 
-  telegram_bot_token: process.env.TELEGRAM_BOT_TOKEN,
+  telegram_prod_bot_token: process.env.TELEGRAM_PROD_BOT_TOKEN,
+  telegram_dev_bot_token: process.env.TELEGRAM_DEV_BOT_TOKEN,
 };
 
 export const TABLES = {
