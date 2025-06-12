@@ -5,7 +5,7 @@ import { TABLES, WEBHOOK_URL } from "./lib/constants";
 import type { Update } from "node-telegram-bot-api";
 import { supabase } from "./services/supabase";
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 console.log("Setting Telegram webhook to:", WEBHOOK_URL);
 
