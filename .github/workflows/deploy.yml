@@ -2,8 +2,7 @@ name: Deploy to Cloud Run
 
 on:
   push:
-    branches:
-      - master
+    branches: [master] # or any other branch you deploy from
 
 jobs:
   deploy:
@@ -14,29 +13,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v3
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
 
-      - name: Configure Docker for Artifact Registry
+      - name: Configure Docker for Artifact Registry (optional)
         run: |
-          gcloud --quiet auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+          gcloud auth configure-docker
 
-      - name: Build and push Docker image
+      - name: Build Docker image
         run: |
-          IMAGE=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_REPO }}/${{ secrets.CLOUD_RUN_SERVICE }}
-          docker build -t $IMAGE .
-          docker push $IMAGE
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/revie-backend .
+
+      - name: Push Docker image
+        run: |
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/revie-backend
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE }} \
-            --image ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GCP_REPO }}/${{ secrets.CLOUD_RUN_SERVICE }} \
-            --platform managed \
+          gcloud run deploy revie-backend \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/revie-backend \
             --region ${{ secrets.GCP_REGION }} \
+            --platform managed \
             --allow-unauthenticated \
-            --port 3000
+            --timeout 60s \
+            --port 8080
