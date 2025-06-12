@@ -21,7 +21,7 @@ RUN bun build src/index.ts --outdir ./dist --target=bun
 
 # Expose the port your Bun server will listen on
 # Ensure this matches the PORT environment variable in your Bun code (e.g., 10000)
-EXPOSE 10000
+EXPOSE 8080
 
 # Command to run your Bun application
 # Use 'bun run' to execute the transpiled JavaScript
