@@ -14,7 +14,7 @@ RUN bun install
 RUN bun run tsc
 
 # Expose the port Bun will listen on
-EXPOSE 8080
+EXPOSE 3000
 
 # Start the server
 CMD ["bun", "run", "src/index.ts"]
