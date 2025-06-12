@@ -7,7 +7,7 @@ import { supabase } from "./services/supabase";
 
 const PORT = Number(process.env.PORT) || 3000;
 
-console.log("Setting Telegram webhook to:", WEBHOOK_URL);
+// console.log("Setting Telegram webhook to:", WEBHOOK_URL);
 
 // bot
 //   .setWebHook(WEBHOOK_URL)
