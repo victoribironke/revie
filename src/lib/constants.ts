@@ -2,7 +2,7 @@ import "dotenv/config";
 
 export const BASE_URL =
   process.env.NODE_ENV === "production"
-    ? "https://revie-backend-91lm.onrender.com"
+    ? "https://revie-backend-858826958747.europe-west9.run.app/"
     : "https://dogfish-viable-instantly.ngrok-free.app";
 
 export const WEBHOOK_URL = BASE_URL + "/telegram-webhook";
