@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { serve } from "bun";
 import { bot } from "./services/telegram";
 import { TABLES, WEBHOOK_URL } from "./lib/constants";

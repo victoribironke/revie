@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 export const BASE_URL =
   process.env.NODE_ENV === "production"
     ? "https://revie-backend-91lm.onrender.com"

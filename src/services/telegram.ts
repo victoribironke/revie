@@ -1,5 +1,4 @@
 import TelegramBot from "node-telegram-bot-api";
-import "dotenv/config";
 import { CREDENTIALS } from "../lib/constants";
 
 const TELEGRAM_BOT_TOKEN = CREDENTIALS.telegram_bot_token;
