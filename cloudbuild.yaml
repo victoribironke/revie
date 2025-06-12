@@ -1,10 +1,8 @@
-# cloudbuild.yaml
 steps:
   # 1. Build the Docker image
   - name: "gcr.io/cloud-builders/docker"
     args:
       ["build", "-t", "gcr.io/$PROJECT_ID/revie-backend-image:$COMMIT_SHA", "."]
-    # $PROJECT_ID and $COMMIT_SHA are built-in Cloud Build variables
 
   # 2. Push the Docker image to Google Container Registry (GCR)
   - name: "gcr.io/cloud-builders/docker"
@@ -16,19 +14,19 @@ steps:
         "gcloud",
         "run",
         "deploy",
-        "revie-backend", # Your Cloud Run service name
+        "revie-backend",
         "--image",
         "gcr.io/$PROJECT_ID/revie-backend-image:$COMMIT_SHA",
         "--region",
-        "europe-west9", # IMPORTANT: Match your Cloud Run service region
+        "us-central1",
         "--platform",
         "managed",
-        # '--set-env-vars', 'TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN},SUPABASE_URL=${_SUPABASE_URL},SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}'
+        # "--min-instances",
+        # "1",
+        # "--set-env-vars",
+        # "TELEGRAM_BOT_TOKEN=${_TELEGRAM_BOT_TOKEN},SUPABASE_URL=${_SUPABASE_URL},SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}",
       ]
     env:
-      - "CLOUDSDK_CORE_DISABLE_PROMPTS=1" # Suppress interactive prompts during deployment
-
-# You need to grant Cloud Build permissions if you are setting env vars or managing secrets
-# or if it's the first time deploying
-images:
-  - "gcr.io/$PROJECT_ID/revie-backend-image:$COMMIT_SHA"
+      - "CLOUDSDK_CORE_DISABLE_PROMPTS=1"
+options:
+  logging: CLOUD_LOGGING_ONLY
