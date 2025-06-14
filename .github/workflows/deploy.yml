@@ -56,7 +56,7 @@ jobs:
           SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format="value(status.url)")
           echo "service_url=$SERVICE_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Set Telegram Webhook
-        run: |
-          # Make sure to set TELEGRAM_BOT_TOKEN as a GitHub Secret as well!
-          curl -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook?url=${{ steps.get_url.outputs.service_url }}/telegram/webhook"
+      # - name: Set Telegram Webhook
+      #   run: |
+      #     # Make sure to set TELEGRAM_BOT_TOKEN as a GitHub Secret as well!
+      #     curl -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook?url=${{ steps.get_url.outputs.service_url }}/telegram/webhook"

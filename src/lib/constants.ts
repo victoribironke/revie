@@ -14,6 +14,8 @@ export const CREDENTIALS = {
 
   telegram_prod_bot_token: process.env.TELEGRAM_PROD_BOT_TOKEN,
   telegram_dev_bot_token: process.env.TELEGRAM_DEV_BOT_TOKEN,
+
+  gemini_api_key: process.env.GEMINI_API_KEY,
 };
 
 export const TABLES = {

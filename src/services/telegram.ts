@@ -10,4 +10,4 @@ if (!TELEGRAM_BOT_TOKEN) {
   throw new Error("TELEGRAM_BOT_TOKEN must be set in .env");
 }
 
-export const bot = new TelegramBot(TELEGRAM_BOT_TOKEN);
+export const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
