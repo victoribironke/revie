@@ -20,4 +20,5 @@ export const CREDENTIALS = {
 
 export const TABLES = {
   users: "users",
+  conversations: "conversations",
 };
