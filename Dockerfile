@@ -23,6 +23,9 @@ RUN bun build src/index.ts --outdir ./dist --target=bun
 # Ensure this matches the PORT environment variable in your Bun code (e.g., 10000)
 EXPOSE 8080
 
+# Set the environment variable for production
+ENV NODE_ENV=production
+
 # Command to run your Bun application
 # Use 'bun run' to execute the transpiled JavaScript
 CMD ["bun", "run", "dist/index.js"]
