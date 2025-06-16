@@ -64,10 +64,7 @@ export const telegramWebhook = async (request: Request) => {
     const maxTurns = 3;
 
     while (currentTurn < maxTurns) {
-      const rawLLMResponse = await sendMessageToLLM(
-        messagesForLLM || [],
-        tools
-      );
+      const rawLLMResponse = await sendMessageToLLM(messagesForLLM, tools);
       const cleanedResponse = rawLLMResponse
         .replace("```json", "")
         .replace("```", "");
