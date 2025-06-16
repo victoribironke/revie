@@ -15,16 +15,16 @@ RUN bun install --production
 # Copy the rest of your application code
 COPY . .
 
+# Set the environment variable for production
+ENV NODE_ENV=production
+
 # Build your TypeScript code (if using TypeScript)
 # This will output JavaScript files to a 'dist' directory
-RUN bun build src/index.ts --outdir ./dist --target=bun
+RUN NODE_ENV=production bun build src/index.ts --outdir ./dist --target=bun
 
 # Expose the port your Bun server will listen on
 # Ensure this matches the PORT environment variable in your Bun code (e.g., 10000)
 EXPOSE 8080
-
-# Set the environment variable for production
-ENV NODE_ENV=production
 
 # Command to run your Bun application
 # Use 'bun run' to execute the transpiled JavaScript
