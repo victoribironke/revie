@@ -1,9 +1,8 @@
 import type TelegramBot from "node-telegram-bot-api";
-import { model, tools } from "../services/gemini";
+import { model, safetySettings, tools } from "../services/gemini";
 import { supabase } from "../services/supabase";
-import { bot } from "../services/telegram";
 import { TABLES } from "./constants";
-import type { Message, User } from "../types";
+import type { Message, Tool, User } from "../types";
 
 export const checkAndRetrieveUser = async (
   chatId: number,
@@ -160,5 +159,60 @@ export const executeTool = async (
   } catch (error) {
     console.error(`Error executing tool ${toolName}:`, error);
     return "Sorry, something went wrong while performing that action.";
+  }
+};
+
+export const sendMessageToLLM = async (
+  messages: { role: string; parts: { text: string }[] }[],
+  availableTools: Tool[]
+): Promise<string> => {
+  try {
+    const systemPrompt =
+      `You are a helpful and concise AI assistant for a Telegram bot called "Revie". Your primary function is to help users chat with summaries of user reviews for places, apps, and products.
+
+When a user asks a question, determine if any of the available tools can help answer it.
+If a tool is relevant: respond with a JSON object: { "tool": "tool_name", "parameters": { "param1": "value1", ... } }.
+If no tool is relevant, or after a tool has been used, respond with a JSON object: { "text": "your_natural_language_response" }.
+
+Keep your direct text responses concise, helpful, and directly answer the user's query based on the information you have or gained from tools.
+
+Available tools: ` +
+      JSON.stringify(
+        availableTools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+        }))
+      );
+
+    const conversation = [
+      { role: "user", parts: [{ text: systemPrompt }] },
+      ...messages,
+    ];
+
+    const result = await model.generateContent({
+      contents: conversation,
+      safetySettings,
+    });
+
+    const llmResponseContent =
+      result.response.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!llmResponseContent) {
+      console.warn("LLM returned no text content.", result.response);
+      return JSON.stringify({
+        text: "I received an empty response from the AI. Please try again.",
+      });
+    }
+
+    return llmResponseContent;
+  } catch (error: any) {
+    console.error(
+      "LLM API error (callLLM):",
+      error.response?.data || error.message || error
+    );
+    return JSON.stringify({
+      text: "Sorry, I couldn't process your request with the AI. Please try again.",
+    });
   }
 };
