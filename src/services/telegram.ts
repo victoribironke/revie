@@ -10,4 +10,10 @@ if (!TELEGRAM_BOT_TOKEN) {
   throw new Error("TELEGRAM_BOT_TOKEN must be set in .env");
 }
 
+console.log("DEBUG: Value of process.env.NODE_ENV:", process.env.NODE_ENV);
+console.log(
+  "DEBUG: Token selected (first 5 chars):",
+  TELEGRAM_BOT_TOKEN.substring(0, 5)
+);
+
 export const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: false });
