@@ -1,8 +1,8 @@
 import type TelegramBot from "node-telegram-bot-api";
-import { model, safetySettings, tools } from "../services/gemini";
+import { reviewModel, safetySettings, tools } from "../services/gemini";
 import { supabase } from "../services/supabase";
 import { TABLES } from "./constants";
-import type { Message, Tool, User } from "../types";
+import type { ConversationState, Message, Place, Tool, User } from "../types";
 
 export const checkAndRetrieveUser = async (
   chatId: number,
@@ -25,6 +25,9 @@ export const checkAndRetrieveUser = async (
           telegram_username: from?.username || "",
           first_name: from?.first_name || "",
           last_name: from?.last_name || "",
+          current_place_id: null,
+          current_place_name: null,
+          last_fetched_reviews_at: null,
         })
         .select("*");
 
@@ -36,6 +39,39 @@ export const checkAndRetrieveUser = async (
     else return { data: user as User, error: null };
   } catch (dbError) {
     return { data: null, error: dbError };
+  }
+};
+
+export const checkAndRetrieveConversationState = async (
+  chatId: number,
+  user_id: string
+) => {
+  try {
+    let { data: state, error: stateError } = await supabase
+      .from("conversation_state")
+      .select("*")
+      .eq("chat_id", chatId)
+      .single();
+
+    if (stateError && stateError.code === "PGRST116") {
+      const { data: newState, error: createError } = await supabase
+        .from(TABLES.conversation_state)
+        .insert({
+          user_id,
+          chat_id: chatId,
+          state: "waiting_for_place_name",
+          context: {},
+          updated_at: new Date().toISOString(),
+        })
+        .select("*");
+
+      if (createError) throw createError;
+      state = newState?.[0];
+    } else if (stateError) throw stateError;
+
+    return { data: state as ConversationState, error: null };
+  } catch (error) {
+    return { data: null, error: error };
   }
 };
 
@@ -78,7 +114,7 @@ export const summarizeReviewData = async (
   topic: string,
   question: string,
   reviewData: string
-): Promise<string> => {
+) => {
   const reviewLLMPrompt = `
           You are an AI assistant specialized in summarizing user reviews.
           Analyze the provided review data for '${topic}' and answer the user's specific question.
@@ -109,44 +145,12 @@ export const summarizeReviewData = async (
   }
 };
 
-export const fetchSimulatedReviewData = async (
-  topic: string,
-  type: "all" | "pros" | "cons"
-): Promise<string> => {
-  // In a real scenario, this would query your Supabase table for reviews related to the topic,
-  // or call an external review API.
-  // For now, we'll return a simple simulated string based on topic/type.
-  console.log(`Simulating fetching ${type} reviews for: ${topic}`);
-  if (topic.toLowerCase().includes("spotify")) {
-    if (type === "pros")
-      return "Reviews often praise Spotify's vast music library, personalized playlists (Discover Weekly!), and seamless cross-device syncing. Users love the intuitive UI and offline listening.";
-    if (type === "cons")
-      return "Common complaints include high battery usage, occasional bugs with downloads, and the free tier having too many ads and limited skips. Some find the podcast integration clunky.";
-    return "Spotify reviews are generally positive about its content library and personalization. Main issues are battery drain and ads on free tier.";
-  }
-  if (topic.toLowerCase().includes("iphone")) {
-    if (type === "pros")
-      return "iPhone reviews consistently highlight its powerful camera, intuitive iOS, excellent app ecosystem, and strong security features. Battery life is often praised on Pro models.";
-    if (type === "cons")
-      return "Reviewers often point out the high price, proprietary charging cables, and limited customization options compared to Android. Some find battery life on standard models average.";
-    return "iPhone reviews mention high quality cameras and smooth iOS, but criticize the high cost and limited customization.";
-  }
-  if (topic.toLowerCase().includes("starbucks")) {
-    if (type === "pros")
-      return "Starbucks reviews commend its consistent coffee quality, widespread availability, and mobile ordering convenience. The atmosphere and WiFi are often a plus for working.";
-    if (type === "cons")
-      return "Common complaints are high prices, long wait times during peak hours, and sometimes inconsistent drink preparation. Some find the environment too noisy.";
-    return "Starbucks reviews praise convenience and quality, but note high prices and potential for long waits.";
-  }
-  return `No specific simulated review data for '${topic}'.`;
-};
-
 export const executeTool = async (
   toolName: string,
   parameters: any,
   chatId: number,
   userRecord: any
-): Promise<string> => {
+) => {
   const tool = tools.find((t) => t.name === toolName);
 
   if (!tool) {
@@ -162,35 +166,53 @@ export const executeTool = async (
   }
 };
 
-export const sendMessageToLLM = async (
-  messages: { role: string; parts: { text: string }[] }[],
-  availableTools: Tool[]
-): Promise<string> => {
+export const sendMessageToLLM = async (messages: Message[]) => {
   try {
-    const systemPrompt =
-      `You are a helpful and concise AI assistant for a Telegram bot called "Revie". Your primary function is to help users chat with summaries of user reviews for places, apps, and products.
+    const systemPrompt = `
+You are Revie, a friendly and concise AI assistant for a Telegram bot focused exclusively on helping users chat about user reviews for places (e.g., restaurants, parks, shops). Your role is to guide users through a specific flow to select a place and discuss its reviews. Do not respond to queries unrelated to places or reviews.
 
-When a user asks a question, determine if any of the available tools can help answer it.
-If a tool is relevant: respond with a JSON object: { "tool": "tool_name", "parameters": { "param1": "value1", ... } }.
-If no tool is relevant, or after a tool has been used, respond with a JSON object: { "text": "your_natural_language_response" }.
+### Conversation Flow:
+1. **Request Place Name**: If the user hasn’t provided a place name or isn’t in an active flow, prompt them with: { "text": "Please tell me the name of a place you’d like to chat about!" }.
+2. **Search Places**: When the user provides a place name, call the 'search_places' tool with the query.
+3. **Place Selection**: When the user responds with a number, call the 'select_place' tool to select the place and check review status.
+   - If reviews are being fetched, inform the user: { "text": "Fetching reviews for [Place Name]. I’ll notify you when they’re ready!" }.
+   - If reviews are ready, inform the user: { "text": "Reviews for [Place Name] are ready. What would you like to know?" }.
+4. **Chatting About Reviews**: Once reviews are available, respond to user queries about the place’s reviews using the 'get_review_insights' tool.
 
-Keep your direct text responses concise, helpful, and directly answer the user's query based on the information you have or gained from tools.
+### Your Behavior:
+- Always respond in a conversational, polite, and concise manner.
+- Stick strictly to the conversation flow above.
+- If the user’s message doesn’t fit the current state (e.g., random text when expecting a number), gently redirect them to the expected input.
+- For review-related queries, use the 'get_review_insights' tool to provide answers based on stored reviews.
+- Do not mention tools, JSON responses, or internal processes in text replies.
 
-Available tools: ` +
-      JSON.stringify(
-        availableTools.map((t) => ({
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters,
-        }))
-      );
+### Response Format:
+- **Tool Call**: Return a JSON object: { "tool": "tool_name", "parameters": { "param1": "value1", ... } }.
+- **Text Response**: Return a JSON object: { "text": "your_natural_language_response" }.
+  - Keep text responses concise (1-2 sentences).
+  - Use a friendly tone, e.g., "Found some places for you!" or "Which place would you like?"
+
+### Handling Edge Cases:
+- If the user asks something unrelated to places (e.g., "What’s the weather?"), respond: { "text": "I’m here to help with place reviews. Please tell me a place you’d like to chat about!" }.
+- If the input is unclear during place selection (e.g., not a number), respond: { "text": "Please choose a number from the list (e.g., '1')." }.
+- If a review insight is requested but reviews are still fetching, respond: { "text": "Reviews for [Place Name] are still being fetched. I’ll let you know when they’re ready!" }.
+
+### Available Tools:
+${JSON.stringify(
+  tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters,
+  }))
+)}
+`;
 
     const conversation = [
       { role: "user", parts: [{ text: systemPrompt }] },
       ...messages,
     ];
 
-    const result = await model.generateContent({
+    const result = await reviewModel.generateContent({
       contents: conversation,
       safetySettings,
     });
@@ -215,4 +237,17 @@ Available tools: ` +
       text: "Sorry, I couldn't process your request with the AI. Please try again.",
     });
   }
+};
+
+export const fetchPublicReviews = async (placeName: string) => {
+  // Placeholder: Simulate reviews from public sites
+  return [
+    {
+      source: "Yelp",
+      text: "Great service!",
+      rating: 4.0,
+      author: "Jane Doe",
+      review_date: new Date().toISOString(),
+    },
+  ];
 };

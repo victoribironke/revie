@@ -16,9 +16,14 @@ export const CREDENTIALS = {
   telegram_dev_bot_token: process.env.TELEGRAM_DEV_BOT_TOKEN,
 
   gemini_api_key: process.env.GEMINI_API_KEY,
+
+  google_maps_api_key: process.env.GOOGLE_MAPS_API_KEY,
 };
 
 export const TABLES = {
   users: "users",
   conversations: "conversations",
+  conversation_state: "conversation_state",
+  places: "places",
+  reviews: "reviews",
 };
