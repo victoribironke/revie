@@ -56,7 +56,11 @@ export type ConversationState = {
   id: string;
   user_id: string;
   chat_id: number;
-  state: string;
-  context: string;
+  state:
+    | "waiting_for_place_name"
+    | "waiting_for_place_selection"
+    | "chatting"
+    | "fetching_reviews";
+  context: any;
   updated_at: string;
 };
