@@ -1,37 +1,24 @@
-# Dockerfile
-
-# Use Bun's official slim Alpine image
-FROM oven/bun:1.1.20-alpine as base
+# Use Bun's official Alpine image
+FROM oven/bun:alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package.json and bun.lockb to install dependencies
+# Copy package files and install production dependencies
 COPY package.json bun.lock ./
-
-# Install dependencies. Use --production to skip dev dependencies
 RUN bun install --production
 
-# Copy the rest of your application code
+# Copy the rest of the application code
 COPY . .
 
 # Set the environment variable for production
 ENV NODE_ENV=production
 
-# Build your TypeScript code (if using TypeScript)
-# This will output JavaScript files to a 'dist' directory
-RUN NODE_ENV=production bun build src/index.ts --outdir ./dist --target=bun
+# Build TypeScript to JavaScript
+RUN bun build src/index.ts --outdir ./dist --target=bun
 
-# Expose the port your Bun server will listen on
-# Ensure this matches the PORT environment variable in your Bun code (e.g., 10000)
+# Cloud Run injects PORT automatically (defaults to 8080)
 EXPOSE 8080
 
-# Command to run your Bun application
-# Use 'bun run' to execute the transpiled JavaScript
+# Run the compiled output
 CMD ["bun", "run", "dist/index.js"]
-
-# For development environment:
-# If you want to keep your development server running in a container,
-# you'd use something like:
-# CMD ["bun", "run", "src/index.ts"]
-# But for Cloud Run, a build step is usually better.
