@@ -25,7 +25,7 @@ Bun.serve({
       }
     }
 
-    return new Response("ReviewBot is running", { status: 200 });
+    return new Response("Revie is running!", { status: 200 });
   },
 });
 
