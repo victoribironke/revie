@@ -36,8 +36,8 @@ jobs:
 
       - name: Build and Push Docker image
         run: |
-          docker build -t gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} -f server/Dockerfile server
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker build -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} -f server/Dockerfile server
+          docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
       - name: Authenticate Google Cloud CLI
         uses: google-github-actions/auth@v2
@@ -49,8 +49,8 @@ jobs:
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
-          image: gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          region: ${{ env.GCP_REGION }}
+          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          region: ${{ env.REGION }}
           flags: --allow-unauthenticated
           env_vars: |-
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
