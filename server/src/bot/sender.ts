@@ -1,9 +1,4 @@
-import dotenv from "dotenv";
-import { CREDENTIALS } from "../lib/constants";
-
-dotenv.config();
-
-const BOT_TOKEN = CREDENTIALS.telegram_bot_token;
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const API_URL = "https://api.telegram.org/bot" + BOT_TOKEN;
 
 export const sendMessage = async (chatId: number, text: string) => {
