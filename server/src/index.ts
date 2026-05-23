@@ -9,6 +9,7 @@ const WEBHOOK_SECRET = CREDENTIALS.telegram_webhook_secret;
 
 Bun.serve({
   port: Number(PORT),
+  hostname: "0.0.0.0",
   fetch: async (req: Request) => {
     if (req.method === "POST" && new URL(req.url).pathname === "/webhook") {
       const secret = req.headers.get("x-telegram-bot-api-secret-token");
