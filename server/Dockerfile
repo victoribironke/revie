@@ -14,11 +14,8 @@ COPY . .
 # Set the environment variable for production
 ENV NODE_ENV=production
 
-# Build TypeScript to JavaScript
-RUN bun build src/index.ts --outdir ./dist --target=bun
-
-# Cloud Run injects PORT automatically (defaults to 8080)
+# Cloud Run injects PORT=8080 automatically
 EXPOSE 8080
 
-# Run the compiled output
-CMD ["bun", "run", "dist/index.js"]
+# Run TypeScript directly — Bun handles it natively, no build step needed
+CMD ["bun", "run", "src/index.ts"]
