@@ -1,24 +1,32 @@
-import { serve } from "bun";
-import { healthCheck } from "./routes/health-check";
-import { telegramWebhook } from "./routes/telegram/webhook";
+import dotenv from "dotenv";
+import { handleUpdate } from "./bot/handler.js";
+import { CREDENTIALS } from "./lib/constants.js";
 
-const PORT = Number(process.env.PORT) || 8080;
+dotenv.config();
 
-serve({
-  port: PORT,
-  fetch: async (request) => {
-    const url = new URL(request.url);
+const PORT = CREDENTIALS.port;
+const WEBHOOK_SECRET = CREDENTIALS.telegram_webhook_secret;
 
-    if (request.method === "GET" && url.pathname === "/") {
-      return healthCheck();
+Bun.serve({
+  port: Number(PORT),
+  fetch: async (req: Request) => {
+    if (req.method === "POST" && new URL(req.url).pathname === "/webhook") {
+      const secret = req.headers.get("x-telegram-bot-api-secret-token");
+      if (WEBHOOK_SECRET && secret !== WEBHOOK_SECRET) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+
+      try {
+        const update = await req.json();
+        handleUpdate(update).catch(console.error);
+        return new Response("OK", { status: 200 });
+      } catch (err) {
+        return new Response("Bad Request", { status: 400 });
+      }
     }
 
-    if (request.method === "POST" && url.pathname === "/telegram/webhook") {
-      return telegramWebhook(request);
-    }
-
-    return new Response("Not Found", { status: 404 });
+    return new Response("ReviewBot is running", { status: 200 });
   },
 });
 
-console.log(`Revie backend server listening on port ${PORT}`);
+console.log(`ReviewBot server listening on port ${PORT}`);
