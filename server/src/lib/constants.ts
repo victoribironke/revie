@@ -12,5 +12,5 @@ export const CREDENTIALS = {
   telegram_bot_token: process.env.TELEGRAM_BOT_TOKEN || "",
   telegram_webhook_secret: process.env.TELEGRAM_WEBHOOK_SECRET || "",
 
-  port: process.env.PORT || 3000,
+  port: process.env.PORT || 8080,
 };
