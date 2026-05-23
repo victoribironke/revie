@@ -1,18 +1,18 @@
-import { getJson } from "serpapi";
 import type { Place, Review } from "../types.js";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 const SERPAPI_KEY = process.env.SERPAPI_KEY || "";
+const SERPAPI_BASE = "https://serpapi.com/search.json";
 
 export const findPlaces = async (query: string): Promise<Place[]> => {
   try {
-    const response = await getJson({
+    const params = new URLSearchParams({
       engine: "google_maps",
       q: query,
       api_key: SERPAPI_KEY,
     });
+
+    const res = await fetch(`${SERPAPI_BASE}?${params}`);
+    const response = await res.json() as any;
 
     if (response.place_results) {
       return [
@@ -45,11 +45,14 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
 
 export const getReviews = async (placeId: string): Promise<Review[]> => {
   try {
-    const response = await getJson({
+    const params = new URLSearchParams({
       engine: "google_maps_reviews",
       place_id: placeId,
       api_key: SERPAPI_KEY,
     });
+
+    const res = await fetch(`${SERPAPI_BASE}?${params}`);
+    const response = await res.json() as any;
 
     if (!response.reviews) return [];
 
