@@ -1,13 +1,47 @@
 import { createClient } from "@supabase/supabase-js";
-import { CREDENTIALS } from "../lib/constants";
+import type { Session } from "../types.js";
+import dotenv from "dotenv";
+import { CREDENTIALS } from "../lib/constants.js";
 
-const supabaseUrl = CREDENTIALS.supabase_url;
-const supabaseServiceRoleKey = CREDENTIALS.supabase_service_role_key;
+dotenv.config();
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error("Supabase URL and Service Role Key must be set in .env");
-}
+const SUPABASE_URL = CREDENTIALS.supabase_url;
+const SUPABASE_KEY = CREDENTIALS.supapbase_service_role_key;
 
-export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: { persistSession: false },
-});
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+export const getSession = async (chatId: number): Promise<Session | null> => {
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("*")
+    .eq("chat_id", chatId)
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    console.error("Supabase getSession error:", error);
+    return null;
+  }
+  return data as Session | null;
+};
+
+export const saveSession = async (session: Session): Promise<void> => {
+  const { error } = await supabase.from("sessions").upsert({
+    ...session,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error("Supabase saveSession error:", error);
+  }
+};
+
+export const clearSession = async (chatId: number): Promise<void> => {
+  const { error } = await supabase
+    .from("sessions")
+    .delete()
+    .eq("chat_id", chatId);
+
+  if (error) {
+    console.error("Supabase clearSession error:", error);
+  }
+};
