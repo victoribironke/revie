@@ -1,11 +1,7 @@
-import dotenv from "dotenv";
 import { handleUpdate } from "./bot/handler.js";
-import { CREDENTIALS } from "./lib/constants.js";
 
-dotenv.config();
-
-const PORT = CREDENTIALS.port;
-const WEBHOOK_SECRET = CREDENTIALS.telegram_webhook_secret;
+const PORT = process.env.PORT || 3000;
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
 Bun.serve({
   port: Number(PORT),
