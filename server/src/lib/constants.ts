@@ -1,29 +1,16 @@
-import "dotenv/config";
-
-export const BASE_URL =
-  process.env.NODE_ENV === "production"
-    ? "https://revie-backend-858826958747.europe-west9.run.app"
-    : "https://dogfish-viable-instantly.ngrok-free.app";
-
-export const WEBHOOK_URL = BASE_URL + "/telegram/webhook";
+export const CLASSIFICATION_MODEL = "meta-llama/llama-3.2-3b-instruct:free";
+export const CHAT_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
 
 export const CREDENTIALS = {
-  supabase_url: process.env.SUPABASE_URL,
-  supabase_anon_key: process.env.SUPABASE_ANON_KEY,
-  supabase_service_role_key: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  openrouter_api_key: process.env.OPENROUTER_API_KEY || "",
 
-  telegram_prod_bot_token: process.env.TELEGRAM_PROD_BOT_TOKEN,
-  telegram_dev_bot_token: process.env.TELEGRAM_DEV_BOT_TOKEN,
+  serpapi_key: process.env.SERPAPI_KEY || "",
 
-  gemini_api_key: process.env.GEMINI_API_KEY,
+  supabase_url: process.env.SUPABASE_URL || "",
+  supapbase_service_role_key: process.env.S9UPABASE_SERVICE_ROLE_KEY || "",
 
-  google_maps_api_key: process.env.GOOGLE_MAPS_API_KEY,
-};
+  telegram_bot_token: process.env.TELEGRAM_BOT_TOKEN || "",
+  telegram_webhook_secret: process.env.TELEGRAM_WEBHOOK_SECRET || "",
 
-export const TABLES = {
-  users: "users",
-  conversations: "conversations",
-  conversation_state: "conversation_state",
-  places: "places",
-  reviews: "reviews",
+  port: process.env.PORT || 3000,
 };
