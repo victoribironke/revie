@@ -1,17 +1,12 @@
 import OpenAI from "openai";
 import type { Message } from "../types.js";
-import dotenv from "dotenv";
-import {
-  CHAT_MODEL,
-  CLASSIFICATION_MODEL,
-  CREDENTIALS,
-} from "../lib/constants.js";
 
-dotenv.config();
+const CLASSIFICATION_MODEL = "meta-llama/llama-3.2-3b-instruct:free";
+const CHAT_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
 
 const openai = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
-  apiKey: CREDENTIALS.openrouter_api_key,
+  apiKey: process.env.OPENROUTER_API_KEY || "",
 });
 
 export const classifyIntent = async (prompt: string): Promise<string> => {
