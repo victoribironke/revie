@@ -31,7 +31,7 @@ const search_places: Tool = {
         })) || [];
 
       if (results.length === 0) {
-        return "🔍 I couldn’t find any matches. Try a more specific name!";
+        return "🔍 I couldn't find any matches. Try a more specific name!";
       }
 
       await supabase.from(TABLES.conversation_state).upsert({
@@ -52,7 +52,7 @@ const search_places: Tool = {
         },
       });
 
-      return "✅ I’ve sent you a list of places to choose from.";
+      return "✅ I've sent you a list of places to choose from.";
     } catch (err) {
       console.error("Search error:", err);
       return "⚠️ I had trouble searching right now. Please try again shortly.";
@@ -75,7 +75,7 @@ const select_place: Tool = {
 
     const results = state?.context?.search_results;
     if (!results || !results[index]) {
-      return "⚠️ That number doesn’t match any listed place. Please try again.";
+      return "⚠️ That number doesn't match any listed place. Please try again.";
     }
 
     const selected = results[index];
@@ -142,7 +142,7 @@ const select_place: Tool = {
 
     if (!recentEnough) {
       // enqueue review fetch job here if needed
-      return `🔄 I’m fetching reviews for *${placeName}*. I’ll notify you when they’re ready!`;
+      return `🔄 I'm fetching reviews for *${placeName}*. I'll notify you when they're ready!`;
     }
 
     return `✅ Reviews for *${placeName}* are ready. Ask me anything!`;
@@ -151,7 +151,7 @@ const select_place: Tool = {
 
 const get_review_insights: Tool = {
   name: "get_review_insights",
-  description: "Answer a user question about the selected place’s reviews.",
+  description: "Answer a user question about the selected place's reviews.",
   parameters: { question: "string" },
   execute: async ({ question }, chatId, user) => {
     if (!user.current_place_id || !user.current_place_name) {
@@ -165,7 +165,7 @@ const get_review_insights: Tool = {
       .single();
 
     if (state?.state !== "chatting") {
-      return `⏳ Reviews for *${user.current_place_name}* are still being fetched. I’ll let you know when they’re ready!`;
+      return `⏳ Reviews for *${user.current_place_name}* are still being fetched. I'll let you know when they're ready!`;
     }
 
     const { embedding } = await embeddingModel.embedContent(question);
@@ -178,7 +178,7 @@ const get_review_insights: Tool = {
     });
 
     if (!reviews?.length) {
-      return "🤔 I couldn’t find any relevant reviews for that question. Try asking something else!";
+      return "🤔 I couldn't find any relevant reviews for that question. Try asking something else!";
     }
 
     const reviewText = reviews
@@ -197,7 +197,7 @@ ${reviewText}
 
     return (
       result.response.text() ||
-      "🧠 Sorry, I couldn’t summarize that well. Try again!"
+      "🧠 Sorry, I couldn't summarize that well. Try again!"
     );
   },
 };
@@ -208,7 +208,7 @@ const check_reviews: Tool = {
   parameters: {},
   execute: async (_params, chatId, user) => {
     if (!user.current_place_id || !user.current_place_name) {
-      return "You haven’t selected a place yet. Try searching for one first.";
+      return "You haven't selected a place yet. Try searching for one first.";
     }
 
     const { data: place } = await supabase
@@ -231,13 +231,13 @@ const check_reviews: Tool = {
       return `✅ Reviews for *${user.current_place_name}* are now available. What would you like to know?`;
     }
 
-    return `⏳ I’m still fetching reviews for *${user.current_place_name}*. You can check again later.`;
+    return `⏳ I'm still fetching reviews for *${user.current_place_name}*. You can check again later.`;
   },
 };
 
 const reset_conversation: Tool = {
   name: "reset_conversation",
-  description: "Resets the user’s conversation to the initial search state.",
+  description: "Resets the user's conversation to the initial search state.",
   parameters: {},
   execute: async (_params, chatId) => {
     await supabase.from(TABLES.conversation_state).upsert({
@@ -247,7 +247,7 @@ const reset_conversation: Tool = {
       updated_at: new Date().toISOString(),
     });
 
-    return "✅ Conversation reset. Tell me the name of a place you’d like to chat about!";
+    return "✅ Conversation reset. Tell me the name of a place you'd like to chat about!";
   },
 };
 

@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - master
+    paths:
+      - 'server/**'
 
 env:
   PROJECT_ID: revie-462710
@@ -34,7 +36,7 @@ jobs:
 
       - name: Build and Push Docker image
         run: |
-          docker build -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          docker build -t gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} -f server/Dockerfile server
           docker push gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
       - name: Authenticate Google Cloud CLI

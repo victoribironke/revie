@@ -98,7 +98,7 @@ export const telegramWebhook = async (request: Request) => {
 
       await bot.sendMessage(
         chatId,
-        `👋 Hello! I’m Revie — your guide to real reviews of places.
+        `👋 Hello! I'm Revie — your guide to real reviews of places.
 
 You can search for places like restaurants, shops, parks... and ask what people are saying.
 
@@ -111,7 +111,7 @@ What would you like to search for today?`
       await executeTool("reset_conversation", {}, chatId, "");
       await bot.sendMessage(
         chatId,
-        "✅ Conversation reset. Tell me the name of a place you’d like to chat about!"
+        "✅ Conversation reset. Tell me the name of a place you'd like to chat about!"
       );
       return new Response("OK");
     }

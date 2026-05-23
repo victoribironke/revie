@@ -1,15 +1,16 @@
-# revie-backend
+# Revie
 
-To install dependencies:
+Monorepo for the Revie project.
+
+## Structure
+
+- `server/` — Backend API (Bun + TypeScript)
+- `web/` — Marketing website (coming soon)
+
+## Server
 
 ```bash
+cd server
 bun install
+bun run src/index.ts
 ```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.2.15. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
