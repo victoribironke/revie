@@ -12,7 +12,7 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
     });
 
     const res = await fetch(`${SERPAPI_BASE}?${params}`);
-    const response = await res.json() as any;
+    const response = (await res.json()) as any;
 
     if (response.place_results) {
       return [
@@ -43,27 +43,66 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
   }
 };
 
+/**
+ * Fetches up to 20 reviews for a place (unfiltered).
+ * Used on initial search to build the knowledge profile.
+ */
 export const getReviews = async (placeId: string): Promise<Review[]> => {
   try {
     const params = new URLSearchParams({
       engine: "google_maps_reviews",
       place_id: placeId,
+      num: "20",
+      sort_by: "qualityScore",
       api_key: SERPAPI_KEY,
     });
 
     const res = await fetch(`${SERPAPI_BASE}?${params}`);
-    const response = await res.json() as any;
+    const response = (await res.json()) as any;
 
     if (!response.reviews) return [];
 
-    return response.reviews.map((rev: any) => ({
-      author: rev.user?.name || rev.author_name || "Unknown",
-      rating: rev.rating || 0,
-      date: rev.date || "",
-      text: rev.snippet || rev.text || "",
-    }));
+    return response.reviews.map(mapReview);
   } catch (error) {
     console.error("SerpAPI getReviews error:", error);
     throw error;
   }
 };
+
+/**
+ * Fetches reviews filtered by a keyword query.
+ * Used during follow-ups to find reviews specifically relevant to the user's question.
+ * Each call costs 1 SerpAPI credit.
+ */
+export const getFilteredReviews = async (
+  placeId: string,
+  query: string,
+): Promise<Review[]> => {
+  try {
+    const params = new URLSearchParams({
+      engine: "google_maps_reviews",
+      place_id: placeId,
+      q: query,
+      num: "10",
+      api_key: SERPAPI_KEY,
+    });
+
+    const res = await fetch(`${SERPAPI_BASE}?${params}`);
+    const response = (await res.json()) as any;
+
+    if (!response.reviews) return [];
+
+    return response.reviews.map(mapReview);
+  } catch (error) {
+    console.error("SerpAPI getFilteredReviews error:", error);
+    // Non-fatal — follow-up can still work with cached knowledge profile
+    return [];
+  }
+};
+
+const mapReview = (rev: any): Review => ({
+  author: rev.user?.name || rev.author_name || "Unknown",
+  rating: rev.rating || 0,
+  date: rev.date || "",
+  text: rev.snippet || rev.text || "",
+});
