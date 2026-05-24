@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Session } from "../types.js";
+import type { Session, Mode } from "../types.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -17,10 +17,13 @@ export const getSession = async (chatId: number): Promise<Session | null> => {
     console.error("Supabase getSession error:", error);
     return null;
   }
+
   return data as Session | null;
 };
 
-export const saveSession = async (session: Session): Promise<void> => {
+export const saveSession = async (
+  session: Partial<Session> & { chat_id: number },
+): Promise<void> => {
   const { error } = await supabase.from("sessions").upsert({
     ...session,
     updated_at: new Date().toISOString(),
