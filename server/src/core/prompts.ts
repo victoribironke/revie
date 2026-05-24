@@ -1,38 +1,48 @@
 import type { Place, Review } from "../types.js";
 
 export const PROMPTS = {
-  classification: (message: string) => `System:
-You classify user messages in a place-review chatbot.
-A session is active (user has already searched for a place).
-
-Respond with ONLY one of:
-- "new_search" — user wants to look up a different place
-- "followup" — user is asking more about the current place
-
-Message: "${message}"`,
-
-  initial_summary: (place: Place, reviews: Review[]) => {
+  initialSummary: (place: Place, reviews: Review[]) => {
     const formattedReviews = reviews
       .map((r) => `⭐${r.rating} — ${r.text}`)
       .join("\n");
 
-    return `System:
-You are a helpful assistant that gives honest, conversational summaries
-of Google Maps reviews. Be balanced — mention both positives and negatives.
-Do not invent information not present in the reviews.
-Keep responses concise (under 200 words unless asked for more detail).
-Format for Telegram: use plain text, avoid markdown symbols that don't render.
+    return {
+      system: `You are a helpful assistant that summarizes Google Maps reviews.
+Format your response as a structured summary:
 
-User:
-Here are the reviews for ${place.name} (${place.address}), rated ${place.rating}/5:
+1. Start with a one-line verdict — the overall vibe of the place.
+2. List key Pros (things people love) as bullet points.
+3. List key Cons (common complaints) as bullet points.
+4. End with a brief note about what type of person or occasion this place is best for.
+
+Rules:
+- Keep it concise (under 200 words).
+- Be honest and balanced — mention both positives and negatives.
+- Do NOT invent information not present in the reviews.
+- Use plain text only. No markdown, no asterisks, no special formatting.
+- Use simple dashes (-) for bullet points.`,
+      user: `Here are the reviews for ${place.name} (${place.address}), rated ${place.rating}/5:
 
 ${formattedReviews}
 
-Give a clear summary of what people are saying. Then ask if they want
-to know anything specific.`;
+Summarize what people are saying about this place.`,
+    };
   },
 
-  follow_up_system: (place: Place, reviews: Review[]) => {
+  followUpSystem: (place: Place, knowledgeProfile: string) => {
+    return `You are a helpful assistant answering questions about ${place.name} (${place.address}).
+Here is a structured profile extracted from real Google Maps reviews:
+
+${knowledgeProfile}
+
+Rules:
+- Answer questions based ONLY on what the reviews say.
+- If the reviews don't cover what the user is asking, say so honestly.
+- Use plain text only. No markdown, no asterisks, no special formatting.
+- Keep responses concise and conversational.`;
+  },
+
+  followUpSystemWithReviews: (place: Place, reviews: Review[]) => {
     const formattedReviews = reviews
       .map((r) => `⭐${r.rating} — ${r.text}`)
       .join("\n");
@@ -42,8 +52,10 @@ Here are the reviews you have access to:
 
 ${formattedReviews}
 
-Answer questions based only on what the reviews say.
-If the reviews don't cover what the user is asking, say so honestly.
-Format for Telegram: plain text only.`;
+Rules:
+- Answer questions based ONLY on what the reviews say.
+- If the reviews don't cover what the user is asking, say so honestly.
+- Use plain text only. No markdown, no asterisks, no special formatting.
+- Keep responses concise and conversational.`;
   },
 };
