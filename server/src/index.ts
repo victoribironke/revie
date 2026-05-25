@@ -27,3 +27,4 @@ Bun.serve({
 });
 
 console.log(`Revie server listening on port ${PORT}`);
+console.log(`Build: ${new Date().toISOString()}`);
