@@ -17,8 +17,8 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
     if (response.place_results) {
       return [
         {
-          place_id:
-            response.place_results.data_id || response.place_results.place_id,
+          data_id: response.place_results.data_id || undefined,
+          place_id: response.place_results.place_id || undefined,
           name: response.place_results.title,
           address: response.place_results.address || "",
           rating: response.place_results.rating || 0,
@@ -29,7 +29,8 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
 
     if (response.local_results && response.local_results.length > 0) {
       return response.local_results.slice(0, 3).map((result: any) => ({
-        place_id: result.data_id || result.place_id,
+        data_id: result.data_id || undefined,
+        place_id: result.place_id || undefined,
         name: result.title,
         address: result.address || "",
         rating: result.rating || 0,
@@ -48,9 +49,11 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
  * Fetches up to 20 reviews for a place (unfiltered).
  * Used on initial search to build the knowledge profile.
  */
-export const getReviews = async (placeId: string): Promise<Review[]> => {
+export const getReviews = async (place: {
+  data_id?: string;
+  place_id?: string;
+}): Promise<Review[]> => {
   try {
-    const isDataId = placeId.includes(":");
     const params = new URLSearchParams({
       engine: "google_maps_reviews",
       num: "20",
@@ -58,10 +61,12 @@ export const getReviews = async (placeId: string): Promise<Review[]> => {
       api_key: SERPAPI_KEY,
     });
 
-    if (isDataId) {
-      params.append("data_id", placeId);
+    if (place.data_id) {
+      params.append("data_id", place.data_id);
+    } else if (place.place_id) {
+      params.append("place_id", place.place_id);
     } else {
-      params.append("place_id", placeId);
+      return [];
     }
 
     const res = await fetch(`${SERPAPI_BASE}?${params}`);
@@ -82,11 +87,10 @@ export const getReviews = async (placeId: string): Promise<Review[]> => {
  * Each call costs 1 SerpAPI credit.
  */
 export const getFilteredReviews = async (
-  placeId: string,
+  place: { data_id?: string; place_id?: string },
   query: string,
 ): Promise<Review[]> => {
   try {
-    const isDataId = placeId.includes(":");
     const params = new URLSearchParams({
       engine: "google_maps_reviews",
       q: query,
@@ -94,10 +98,12 @@ export const getFilteredReviews = async (
       api_key: SERPAPI_KEY,
     });
 
-    if (isDataId) {
-      params.append("data_id", placeId);
+    if (place.data_id) {
+      params.append("data_id", place.data_id);
+    } else if (place.place_id) {
+      params.append("place_id", place.place_id);
     } else {
-      params.append("place_id", placeId);
+      return [];
     }
 
     const res = await fetch(`${SERPAPI_BASE}?${params}`);
