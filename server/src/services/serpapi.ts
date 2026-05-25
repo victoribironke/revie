@@ -99,7 +99,7 @@ export const getReviews = async (place: {
       place_id: place.place_id,
     });
 
-    const reviewParams = { num: "20", sort_by: "qualityScore" };
+    const reviewParams = { sort_by: "qualityScore" };
 
     // Try data_id first (preferred by SerpAPI for reviews)
     if (place.data_id) {
