@@ -12,8 +12,6 @@ const TelegramIcon = ({ className }: { className?: string }) => {
   );
 };
 
-
-
 const SearchIcon = ({ className }: { className?: string }) => {
   return (
     <svg
