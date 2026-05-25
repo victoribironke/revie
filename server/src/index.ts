@@ -26,4 +26,4 @@ Bun.serve({
   },
 });
 
-console.log(`ReviewBot server listening on port ${PORT}`);
+console.log(`Revie server listening on port ${PORT}`);
