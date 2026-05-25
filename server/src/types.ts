@@ -1,4 +1,4 @@
-export type Mode = "idle" | "choosing_place" | "active_place";
+export type State = "IDLE" | "AWAITING_SELECTION" | "CHATTING";
 
 export type Intent = "new_search" | "followup" | "command";
 
@@ -24,9 +24,8 @@ export type Message = {
 
 export type Session = {
   chat_id: number;
-  mode: Mode;
+  state: State;
   current_place: Place | null;
-  current_reviews: Review[] | null;
   knowledge_profile: string | null;
   messages: Message[];
   pending_places: Place[] | null;
