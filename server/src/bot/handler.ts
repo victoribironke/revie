@@ -75,7 +75,7 @@ const handleCallbackQuery = async (callback: any) => {
   if (callbackData.startsWith("ask:")) {
     const question = callbackData.substring(4); // Remove "ask:" prefix
     const session = await getSession(chatId);
-    if (session && session.mode === "active_place") {
+    if (session && session.state === "CHATTING") {
       await followUp(chatId, question, session);
     }
     return;
@@ -101,22 +101,34 @@ const handleMessage = async (message: any) => {
 
   await sendTyping(chatId);
 
-  const session = await getSession(chatId);
-  const mode = session?.mode || "idle";
+  // Path A: URL Detected
+  const urlMatch = text.match(
+    /(https?:\/\/(?:www\.)?(?:maps\.app\.goo\.gl|google\.com\/maps)\/[^\s]+)/,
+  );
+  if (urlMatch) {
+    const extractedQuery = await extractQueryFromUrl(urlMatch[1]!);
+    if (extractedQuery) {
+      await newSearch(chatId, extractedQuery);
+      return;
+    }
+  }
 
-  switch (mode) {
-    case "idle":
+  const session = await getSession(chatId);
+  const state = session?.state || "IDLE";
+
+  switch (state) {
+    case "IDLE":
       // No active session — everything is a new search
       await newSearch(chatId, text);
       break;
 
-    case "choosing_place":
+    case "AWAITING_SELECTION":
       // User typed text instead of pressing a button — treat as a new search
       // (clears the pending_places state)
       await newSearch(chatId, text);
       break;
 
-    case "active_place":
+    case "CHATTING":
       // Determine if this is a follow-up or a new search using heuristics
       if (looksLikeNewSearch(text)) {
         await newSearch(chatId, text);
@@ -125,6 +137,24 @@ const handleMessage = async (message: any) => {
       }
       break;
   }
+};
+
+/**
+ * Extracts a place query from a Google Maps URL by following the redirect
+ */
+const extractQueryFromUrl = async (url: string): Promise<string | null> => {
+  try {
+    const res = await fetch(url);
+    const finalUrl = res.url;
+    // e.g. https://www.google.com/maps/place/Cafe+Neo+Lagos/...
+    const match = finalUrl.match(/\/maps\/(?:place|search)\/([^/?]+)/);
+    if (match && match[1]) {
+      return decodeURIComponent(match[1].replace(/\+/g, " "));
+    }
+  } catch (error) {
+    console.error("URL extraction error:", error);
+  }
+  return null;
 };
 
 /**
