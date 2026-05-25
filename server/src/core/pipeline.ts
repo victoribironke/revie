@@ -119,7 +119,7 @@ const processPlace = async (
     }
 
     // Step 2: Fetch reviews
-    const reviews = await getReviews(place.place_id);
+    const reviews = await getReviews(place);
 
     if (reviews.length === 0) {
       const noReviewsText = `Found <b>${escapeHtml(place.name)}</b>, but there are no reviews yet.`;
@@ -213,7 +213,7 @@ export const followUp = async (
   let filteredContext = "";
   try {
     const filteredReviews = await getFilteredReviews(
-      session.current_place.place_id,
+      session.current_place,
       message,
     );
 
@@ -301,10 +301,14 @@ const buildHeroKeyboard = (place: Place): InlineButton[][] => {
       },
     ],
     [
-      {
-        text: "🗺️ Open in Google Maps",
-        url: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
-      },
+      ...(place.place_id
+        ? [
+            {
+              text: "🗺️ Open in Google Maps",
+              url: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
+            },
+          ]
+        : []),
     ],
     [{ text: "❌ End Chat", callback_data: "clear_session" }],
   ];
