@@ -17,7 +17,8 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
     if (response.place_results) {
       return [
         {
-          place_id: response.place_results.place_id,
+          place_id:
+            response.place_results.data_id || response.place_results.place_id,
           name: response.place_results.title,
           address: response.place_results.address || "",
           rating: response.place_results.rating || 0,
@@ -28,7 +29,7 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
 
     if (response.local_results && response.local_results.length > 0) {
       return response.local_results.slice(0, 3).map((result: any) => ({
-        place_id: result.place_id,
+        place_id: result.data_id || result.place_id,
         name: result.title,
         address: result.address || "",
         rating: result.rating || 0,
@@ -49,13 +50,19 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
  */
 export const getReviews = async (placeId: string): Promise<Review[]> => {
   try {
+    const isDataId = placeId.includes(":");
     const params = new URLSearchParams({
       engine: "google_maps_reviews",
-      place_id: placeId,
       num: "20",
       sort_by: "qualityScore",
       api_key: SERPAPI_KEY,
     });
+
+    if (isDataId) {
+      params.append("data_id", placeId);
+    } else {
+      params.append("place_id", placeId);
+    }
 
     const res = await fetch(`${SERPAPI_BASE}?${params}`);
     const response = (await res.json()) as any;
@@ -79,13 +86,19 @@ export const getFilteredReviews = async (
   query: string,
 ): Promise<Review[]> => {
   try {
+    const isDataId = placeId.includes(":");
     const params = new URLSearchParams({
       engine: "google_maps_reviews",
-      place_id: placeId,
       q: query,
       num: "10",
       api_key: SERPAPI_KEY,
     });
+
+    if (isDataId) {
+      params.append("data_id", placeId);
+    } else {
+      params.append("place_id", placeId);
+    }
 
     const res = await fetch(`${SERPAPI_BASE}?${params}`);
     const response = (await res.json()) as any;
