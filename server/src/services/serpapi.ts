@@ -15,20 +15,24 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
     const response = (await res.json()) as any;
 
     if (response.place_results) {
-      return [
-        {
-          data_id: response.place_results.data_id || undefined,
-          place_id: response.place_results.place_id || undefined,
-          name: response.place_results.title,
-          address: response.place_results.address || "",
-          rating: response.place_results.rating || 0,
-          reviews_count: response.place_results.reviews || 0,
-        },
-      ];
+      const place: Place = {
+        data_id: response.place_results.data_id || undefined,
+        place_id: response.place_results.place_id || undefined,
+        name: response.place_results.title,
+        address: response.place_results.address || "",
+        rating: response.place_results.rating || 0,
+        reviews_count: response.place_results.reviews || 0,
+      };
+      console.log("[findPlaces] place_results match:", {
+        name: place.name,
+        data_id: place.data_id,
+        place_id: place.place_id,
+      });
+      return [place];
     }
 
     if (response.local_results && response.local_results.length > 0) {
-      return response.local_results.slice(0, 3).map((result: any) => ({
+      const places = response.local_results.slice(0, 3).map((result: any) => ({
         data_id: result.data_id || undefined,
         place_id: result.place_id || undefined,
         name: result.title,
@@ -36,8 +40,18 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
         rating: result.rating || 0,
         reviews_count: result.reviews || 0,
       }));
+      console.log(
+        "[findPlaces] local_results matches:",
+        places.map((p: Place) => ({
+          name: p.name,
+          data_id: p.data_id,
+          place_id: p.place_id,
+        })),
+      );
+      return places;
     }
 
+    console.log("[findPlaces] No results found for query:", query);
     return [];
   } catch (error) {
     console.error("SerpAPI findPlaces error:", error);
@@ -46,35 +60,99 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
 };
 
 /**
+ * Fetches reviews from SerpAPI using a specific identifier.
+ * Returns the raw response for inspection.
+ */
+const fetchReviewsWithId = async (
+  idType: "data_id" | "place_id",
+  idValue: string,
+  extraParams?: Record<string, string>,
+): Promise<{ reviews: Review[]; raw: any }> => {
+  const params = new URLSearchParams({
+    engine: "google_maps_reviews",
+    api_key: SERPAPI_KEY,
+    ...extraParams,
+  });
+  params.append(idType, idValue);
+
+  const res = await fetch(`${SERPAPI_BASE}?${params}`);
+  const response = (await res.json()) as any;
+
+  if (!response.reviews || response.reviews.length === 0) {
+    return { reviews: [], raw: response };
+  }
+
+  return { reviews: response.reviews.map(mapReview), raw: null };
+};
+
+/**
  * Fetches up to 20 reviews for a place (unfiltered).
- * Used on initial search to build the knowledge profile.
+ * Uses data_id first, falls back to place_id if no reviews returned.
  */
 export const getReviews = async (place: {
   data_id?: string;
   place_id?: string;
 }): Promise<Review[]> => {
   try {
-    const params = new URLSearchParams({
-      engine: "google_maps_reviews",
-      num: "20",
-      sort_by: "qualityScore",
-      api_key: SERPAPI_KEY,
+    console.log("[getReviews] Called with:", {
+      data_id: place.data_id,
+      place_id: place.place_id,
     });
 
+    const reviewParams = { num: "20", sort_by: "qualityScore" };
+
+    // Try data_id first (preferred by SerpAPI for reviews)
     if (place.data_id) {
-      params.append("data_id", place.data_id);
-    } else if (place.place_id) {
-      params.append("place_id", place.place_id);
-    } else {
-      return [];
+      console.log("[getReviews] Trying data_id:", place.data_id);
+      const result = await fetchReviewsWithId(
+        "data_id",
+        place.data_id,
+        reviewParams,
+      );
+      if (result.reviews.length > 0) {
+        console.log(
+          "[getReviews] Got",
+          result.reviews.length,
+          "reviews via data_id",
+        );
+        return result.reviews;
+      }
+      console.log("[getReviews] data_id returned 0 reviews. Raw error info:", {
+        error: result.raw?.error,
+        search_information: result.raw?.search_information,
+      });
     }
 
-    const res = await fetch(`${SERPAPI_BASE}?${params}`);
-    const response = (await res.json()) as any;
+    // Fallback to place_id
+    if (place.place_id) {
+      console.log("[getReviews] Trying place_id:", place.place_id);
+      const result = await fetchReviewsWithId(
+        "place_id",
+        place.place_id,
+        reviewParams,
+      );
+      if (result.reviews.length > 0) {
+        console.log(
+          "[getReviews] Got",
+          result.reviews.length,
+          "reviews via place_id",
+        );
+        return result.reviews;
+      }
+      console.log(
+        "[getReviews] place_id also returned 0 reviews. Raw error info:",
+        {
+          error: result.raw?.error,
+          search_information: result.raw?.search_information,
+        },
+      );
+    }
 
-    if (!response.reviews) return [];
+    if (!place.data_id && !place.place_id) {
+      console.log("[getReviews] No identifiers available at all");
+    }
 
-    return response.reviews.map(mapReview);
+    return [];
   } catch (error) {
     console.error("SerpAPI getReviews error:", error);
     throw error;
@@ -91,27 +169,29 @@ export const getFilteredReviews = async (
   query: string,
 ): Promise<Review[]> => {
   try {
-    const params = new URLSearchParams({
-      engine: "google_maps_reviews",
-      q: query,
-      num: "10",
-      api_key: SERPAPI_KEY,
-    });
+    const reviewParams = { q: query, num: "10" };
 
+    // Try data_id first
     if (place.data_id) {
-      params.append("data_id", place.data_id);
-    } else if (place.place_id) {
-      params.append("place_id", place.place_id);
-    } else {
-      return [];
+      const result = await fetchReviewsWithId(
+        "data_id",
+        place.data_id,
+        reviewParams,
+      );
+      if (result.reviews.length > 0) return result.reviews;
     }
 
-    const res = await fetch(`${SERPAPI_BASE}?${params}`);
-    const response = (await res.json()) as any;
+    // Fallback to place_id
+    if (place.place_id) {
+      const result = await fetchReviewsWithId(
+        "place_id",
+        place.place_id,
+        reviewParams,
+      );
+      if (result.reviews.length > 0) return result.reviews;
+    }
 
-    if (!response.reviews) return [];
-
-    return response.reviews.map(mapReview);
+    return [];
   } catch (error) {
     console.error("SerpAPI getFilteredReviews error:", error);
     // Non-fatal — follow-up can still work with cached knowledge profile
