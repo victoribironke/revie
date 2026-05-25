@@ -10,7 +10,8 @@ export type Review = {
 };
 
 export type Place = {
-  place_id: string;
+  data_id?: string;
+  place_id?: string;
   name: string;
   address: string;
   rating: number;
