@@ -64,9 +64,8 @@ export const newSearch = async (chatId: number, query: string) => {
     // Save pending places and set mode
     await saveSession({
       chat_id: chatId,
-      mode: "choosing_place",
+      state: "AWAITING_SELECTION",
       current_place: null,
-      current_reviews: null,
       knowledge_profile: null,
       messages: [],
       pending_places: places,
@@ -167,9 +166,8 @@ const processPlace = async (
     // Step 6: Save session
     await saveSession({
       chat_id: chatId,
-      mode: "active_place",
+      state: "CHATTING",
       current_place: place,
-      current_reviews: reviews,
       knowledge_profile: knowledgeProfile,
       messages: [{ role: "assistant", content: summary }],
       pending_places: null,
@@ -235,12 +233,6 @@ export const followUp = async (
     systemPrompt =
       PROMPTS.followUpSystem(session.current_place, session.knowledge_profile) +
       filteredContext;
-  } else if (session.current_reviews) {
-    systemPrompt =
-      PROMPTS.followUpSystemWithReviews(
-        session.current_place,
-        session.current_reviews,
-      ) + filteredContext;
   } else {
     await sendMessage(
       chatId,
