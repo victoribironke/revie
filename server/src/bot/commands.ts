@@ -6,29 +6,15 @@ export const handleCommand = async (chatId: number, text: string) => {
 
   switch (command) {
     case "/start":
-      await sendMessageWithKeyboard(
+      await clearSession(chatId);
+      await sendMessage(
         chatId,
-        "Hey! 👋 Send me the name of any place and I'll read the Google Maps reviews to tell you if it's worth your time.\n\nTry one of these to see how it works:",
-        [
-          [
-            {
-              text: "🍔 Chicken Republic, Yaba",
-              callback_data: "search:Chicken Republic Yaba",
-            },
-          ],
-          [
-            {
-              text: "☕ Cafe Neo, Victoria Island",
-              callback_data: "search:Cafe Neo Victoria Island",
-            },
-          ],
-          [
-            {
-              text: "🎭 Terra Kulture, Lagos",
-              callback_data: "search:Terra Kulture Lagos",
-            },
-          ],
-        ],
+        "📍 <b>Let's check a place.</b>\n" +
+          "The fastest way is to share the location directly from Google Maps.\n" +
+          "1. Open Google Maps\n" +
+          '2. Hit "Share" on the place\n' +
+          "3. Paste the link here!\n" +
+          '<i>(You can also just type the name, like "Cafe Neo Lagos".)</i>',
       );
       break;
 
@@ -36,9 +22,10 @@ export const handleCommand = async (chatId: number, text: string) => {
       await sendMessage(
         chatId,
         "Here's what I can do:\n\n" +
-          "• Send a place name to get a summary of its reviews.\n" +
+          "• Send a place name or Google Maps link to get a summary of its reviews.\n" +
           "• Ask follow-up questions to dig deeper.\n" +
-          "• Type a new place name anytime to start a new search.\n" +
+          "• Use /newsearch to start a new search anytime.\n" +
+          "• Use /history to view your past searches (coming soon).\n" +
           "• Use /end to clear your current session.",
       );
       break;
@@ -52,15 +39,23 @@ export const handleCommand = async (chatId: number, text: string) => {
       break;
 
     case "/search":
+    case "/newsearch":
       // Strip the command prefix and treat the rest as a search query
-      const query = text.replace(/^\/search\s*/i, "").trim();
+      const query = text.replace(/^\/(?:new)?search\s*/i, "").trim();
       if (query) {
         // Return the query so the caller can route it to newSearch
         return { action: "search" as const, query };
       }
       await sendMessage(
         chatId,
-        "Usage: <code>/search Place Name, City</code>\n\nOr just type the place name directly!",
+        "Usage: <code>/newsearch Place Name, City</code>\n\nOr just type the place name or paste a Maps link directly!",
+      );
+      break;
+
+    case "/history":
+      await sendMessage(
+        chatId,
+        "The history feature is coming soon! For now, your recent searches are only available during your active session.",
       );
       break;
 
