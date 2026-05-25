@@ -103,7 +103,7 @@ const handleMessage = async (message: any) => {
 
   // Path A: URL Detected
   const urlMatch = text.match(
-    /(https?:\/\/(?:www\.)?(?:maps\.app\.goo\.gl|google\.com\/maps)\/[^\s]+)/,
+    /(https?:\/\/(?:www\.)?(?:maps\.app\.goo\.gl|google\.com\/maps)[^\s]*)/,
   );
   if (urlMatch) {
     const extractedQuery = await extractQueryFromUrl(urlMatch[1]!);
@@ -139,14 +139,33 @@ const handleMessage = async (message: any) => {
   }
 };
 
-/**
- * Extracts a place query from a Google Maps URL by following the redirect
- */
 const extractQueryFromUrl = async (url: string): Promise<string | null> => {
   try {
+    // 1. Try to extract from URL parameters first (handles long URLs)
+    try {
+      const parsedUrl = new URL(url);
+      const daddr = parsedUrl.searchParams.get("daddr");
+      if (daddr) return daddr;
+      const q = parsedUrl.searchParams.get("q");
+      if (q) return q;
+    } catch (e) {
+      // Ignore URL parsing errors
+    }
+
+    // 2. Follow redirect (handles short URLs like maps.app.goo.gl)
     const res = await fetch(url);
     const finalUrl = res.url;
-    // e.g. https://www.google.com/maps/place/Cafe+Neo+Lagos/...
+    
+    // Check if redirect gave us parameters
+    try {
+      const parsedFinal = new URL(finalUrl);
+      const daddr = parsedFinal.searchParams.get("daddr");
+      if (daddr) return daddr;
+      const q = parsedFinal.searchParams.get("q");
+      if (q) return q;
+    } catch (e) {}
+
+    // 3. Fallback to extracting from path (e.g. /maps/place/Cafe+Neo)
     const match = finalUrl.match(/\/maps\/(?:place|search)\/([^/?]+)/);
     if (match && match[1]) {
       return decodeURIComponent(match[1].replace(/\+/g, " "));
