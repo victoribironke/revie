@@ -1,11 +1,12 @@
 import OpenAI from "openai";
 import type { Message } from "../types.js";
 
-const CHAT_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
+const CHAT_MODEL = "llama-3.3-70b-versatile";
 
 const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY || "",
+  baseURL: "https://api.groq.com/openai/v1",
+  apiKey: process.env.GROQ_API_KEY || "",
+  maxRetries: 3,
 });
 
 export const chatCompletion = async (messages: Message[]): Promise<string> => {
