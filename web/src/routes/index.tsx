@@ -334,13 +334,13 @@ const Index = () => {
                 className="text-[12px] text-[#8c847d] hover:text-accent transition-colors"
               >
                 Terms
-              </a>
+              </a>*/}
               <a
-                href="#"
+                href="mailto:hello@victoribironke.com"
                 className="text-[12px] text-[#8c847d] hover:text-accent transition-colors"
               >
                 Support
-              </a> */}
+              </a>
             </div>
           </div>
         </div>
