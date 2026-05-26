@@ -5,6 +5,7 @@ import {
 } from "../services/serpapi.js";
 import { chatCompletion, extractKnowledgeProfile } from "../services/llm.js";
 import { saveSession } from "../services/supabase.js";
+import { trackEvent } from "../services/analytics.js";
 import { PROMPTS } from "./prompts.js";
 import {
   sendMessage,
@@ -27,6 +28,7 @@ export const newSearch = async (chatId: number, query: string) => {
   try {
     // Step 2: Find places via SerpAPI
     const places = await findPlaces(query);
+    trackEvent(chatId, "search", { query, results: places.length });
 
     if (places.length === 0) {
       const notFoundText =
@@ -120,6 +122,11 @@ const processPlace = async (
 
     // Step 2: Fetch reviews
     const reviews = await getReviews(place);
+    trackEvent(chatId, "place_selected", {
+      name: place.name,
+      rating: place.rating,
+      reviews_found: reviews.length,
+    });
 
     if (reviews.length === 0) {
       const noReviewsText = `Found <b>${escapeHtml(place.name)}</b>, but there are no reviews yet.`;
@@ -210,6 +217,7 @@ export const followUp = async (
   }
 
   // Step 1: Fetch keyword-filtered reviews relevant to the user's question
+  trackEvent(chatId, "follow_up", { place: session.current_place?.name });
   let filteredContext = "";
   try {
     const filteredReviews = await getFilteredReviews(
