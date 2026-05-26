@@ -4,6 +4,7 @@ import { newSearch, followUp, handlePlaceSelection } from "../core/pipeline.js";
 import { sendTyping, sendError, answerCallbackQuery } from "./sender.js";
 import { clearSession } from "../services/supabase.js";
 import { sendMessage } from "./sender.js";
+import { trackEvent } from "../services/analytics.js";
 
 /**
  * Main entry point for all Telegram webhook updates.
@@ -65,6 +66,7 @@ const handleCallbackQuery = async (callback: any) => {
 
   if (callbackData === "clear_session") {
     await clearSession(chatId);
+    trackEvent(chatId, "session_cleared");
     await sendMessage(
       chatId,
       "Session cleared! Send a place name to start fresh. 🔍",
@@ -155,7 +157,7 @@ const extractQueryFromUrl = async (url: string): Promise<string | null> => {
     // 2. Follow redirect (handles short URLs like maps.app.goo.gl)
     const res = await fetch(url);
     const finalUrl = res.url;
-    
+
     // Check if redirect gave us parameters
     try {
       const parsedFinal = new URL(finalUrl);
