@@ -1,15 +1,15 @@
 # Revie
 
-A Telegram bot that summarizes Google Maps reviews using AI. Paste a Google Maps link or type a place name — Revie fetches real reviews, generates a summary, and lets you ask follow-up questions about the place.
+A Telegram bot that summarizes Google Maps reviews and web context using AI. Paste any link (Google Maps, Instagram, website) or type a place name — Revie fetches real reviews and broader web info, generates a comprehensive summary, and lets you ask conversational follow-up questions about the place.
 
 ## How It Works
 
-1. User sends a place name or Google Maps link
-2. Revie finds the place via [SerpAPI](https://serpapi.com) (Google Maps search)
-3. Fetches real reviews from Google Maps
+1. User sends a place name or any web link (Google Maps, Instagram, etc.)
+2. Revie extracts the place intent using LLM classification and finds the place via [SerpAPI](https://serpapi.com)
+3. Fetches real reviews from Google Maps and broader context via [Tavily](https://tavily.com)
 4. Uses [Groq](https://groq.com) (Llama 3.3 70B) to generate a structured summary
-5. Builds a knowledge profile for follow-up questions
-6. User can ask unlimited follow-up questions about the place
+5. Builds a knowledge profile using both reviews and web info
+6. User can chat conversationally and ask unlimited follow-up questions
 
 ## Project Structure
 
@@ -42,6 +42,7 @@ A Telegram bot that summarizes Google Maps reviews using AI. Paste a Google Maps
 - [Bun](https://bun.sh) runtime
 - [Telegram Bot](https://core.telegram.org/bots#botfather) token
 - [SerpAPI](https://serpapi.com) key
+- [Tavily](https://tavily.com) API key
 - [Groq](https://console.groq.com) API key (free tier)
 - [Supabase](https://supabase.com) project
 
@@ -52,6 +53,7 @@ Copy `.env.example` to `.env` in the `server/` directory:
 ```
 GROQ_API_KEY=your_groq_api_key
 SERPAPI_KEY=your_serpapi_key
+TAVILY_API_KEY=your_tavily_api_key
 SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
@@ -117,6 +119,7 @@ The workflow (`.github/workflows/deploy.yml`) handles:
 | `GCP_SA_KEY` | GCP service account key (JSON) |
 | `GROQ_API_KEY` | Groq API key |
 | `SERPAPI_KEY` | SerpAPI key |
+| `TAVILY_API_KEY` | Tavily API key |
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token from BotFather |
