@@ -143,7 +143,7 @@ export const editMessage = async (
  */
 export const answerCallbackQuery = async (
   callbackQueryId: string,
-  text?: string,
+  options?: { text?: string; show_alert?: boolean },
 ) => {
   try {
     await fetch(API_URL + "/answerCallbackQuery", {
@@ -151,7 +151,8 @@ export const answerCallbackQuery = async (
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         callback_query_id: callbackQueryId,
-        text: text,
+        text: options?.text,
+        show_alert: options?.show_alert,
       }),
     });
   } catch (error) {
