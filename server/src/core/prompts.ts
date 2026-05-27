@@ -1,13 +1,22 @@
 import type { Place, Review } from "../types.js";
 
 export const PROMPTS = {
-  initialSummary: (place: Place, reviews: Review[]) => {
+  initialSummary: (
+    place: Place,
+    reviews: Review[],
+    webContext: string = "",
+  ) => {
     const formattedReviews = reviews
       .map((r) => `⭐${r.rating} — ${r.text}`)
       .join("\n");
 
+    let context = formattedReviews;
+    if (webContext) {
+      context += `\n\nAdditionally, here is some information found from across the web (social media, websites):\n${webContext}`;
+    }
+
     return {
-      system: `You are a helpful assistant that summarizes Google Maps reviews.
+      system: `You are a helpful assistant that summarizes Google Maps reviews and web context.
 Format your response as a structured summary:
 
 1. Start with a one-line verdict — the overall vibe of the place.
@@ -21,9 +30,9 @@ Rules:
 - Do NOT invent information not present in the reviews.
 - Use plain text only. No markdown, no asterisks, no special formatting.
 - Use simple dashes (-) for bullet points.`,
-      user: `Here are the reviews for ${place.name} (${place.address}), rated ${place.rating}/5:
+      user: `Here is the information for ${place.name} (${place.address}), rated ${place.rating}/5:
 
-${formattedReviews}
+${context}
 
 Summarize what people are saying about this place.`,
     };
