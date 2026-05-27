@@ -5,6 +5,10 @@ import { sendTyping, sendError, answerCallbackQuery } from "./sender.js";
 import { clearSession } from "../services/supabase.js";
 import { sendMessage } from "./sender.js";
 import { trackEvent } from "../services/analytics.js";
+import {
+  classifyIntent,
+  extractPlaceFromUrl as extractPlaceWithLLM,
+} from "../services/llm.js";
 
 /**
  * Main entry point for all Telegram webhook updates.
@@ -75,10 +79,21 @@ const handleCallbackQuery = async (callback: any) => {
   }
 
   if (callbackData.startsWith("ask:")) {
-    const question = callbackData.substring(4); // Remove "ask:" prefix
+    const parts = callbackData.split(":");
+    const placeId = parts[1];
+    const question = parts.slice(2).join(":");
     const session = await getSession(chatId);
     if (session && session.state === "CHATTING") {
-      await followUp(chatId, question, session);
+      const currentId =
+        session.current_place?.place_id || session.current_place?.data_id;
+      if (currentId === placeId || !currentId) {
+        await followUp(chatId, question, session);
+      } else {
+        await answerCallbackQuery(callback.id, {
+          text: "This button is for a previous search. Please ask about the current place.",
+          show_alert: true,
+        });
+      }
     }
     return;
   }
@@ -104,40 +119,47 @@ const handleMessage = async (message: any) => {
   await sendTyping(chatId);
 
   // Path A: URL Detected
-  const urlMatch = text.match(
-    /(https?:\/\/(?:www\.)?(?:maps\.app\.goo\.gl|google\.com\/maps)[^\s]*)/,
-  );
-  if (urlMatch) {
-    const extractedQuery = await extractQueryFromUrl(urlMatch[1]!);
-    if (extractedQuery) {
-      await newSearch(chatId, extractedQuery);
-      return;
+  const genericUrlMatch = text.match(/(https?:\/\/[^\s]+)/);
+  if (genericUrlMatch) {
+    const url = genericUrlMatch[1]!;
+    if (url.includes("maps.app.goo.gl") || url.includes("google.com/maps")) {
+      const extractedQuery = await extractQueryFromUrl(url);
+      if (extractedQuery) {
+        await newSearch(chatId, extractedQuery);
+        return;
+      }
+    } else {
+      const extractedPlace = await extractPlaceWithLLM(url);
+      if (extractedPlace) {
+        await newSearch(chatId, extractedPlace);
+        return;
+      }
     }
   }
 
   const session = await getSession(chatId);
-  const state = session?.state || "IDLE";
 
-  switch (state) {
-    case "IDLE":
-      // No active session — everything is a new search
-      await newSearch(chatId, text);
-      break;
+  // Use LLM to classify intent
+  const { intent, refinedQuery } = await classifyIntent(text);
 
-    case "AWAITING_SELECTION":
-      // User typed text instead of pressing a button — treat as a new search
-      // (clears the pending_places state)
-      await newSearch(chatId, text);
-      break;
+  if (intent === "greeting") {
+    await sendMessage(
+      chatId,
+      "👋 Hello! I'm Revie. Send me a place name or link, and I'll summarize its reviews for you. You can also ask me specific questions about it!",
+    );
+    return;
+  }
 
-    case "CHATTING":
-      // Determine if this is a follow-up or a new search using heuristics
-      if (looksLikeNewSearch(text)) {
-        await newSearch(chatId, text);
-      } else if (session) {
-        await followUp(chatId, text, session);
-      }
-      break;
+  if (intent === "search_place") {
+    await newSearch(chatId, refinedQuery || text);
+    return;
+  }
+
+  if (session && session.state === "CHATTING" && session.current_place) {
+    await followUp(chatId, text, session);
+  } else {
+    // Treat as search if we have no active session but the LLM thought it was a follow-up
+    await newSearch(chatId, refinedQuery || text);
   }
 };
 
@@ -176,22 +198,4 @@ const extractQueryFromUrl = async (url: string): Promise<string | null> => {
     console.error("URL extraction error:", error);
   }
   return null;
-};
-
-/**
- * Simple heuristic to detect if a message looks like a new place search
- * rather than a follow-up question. No LLM needed.
- */
-const looksLikeNewSearch = (text: string): boolean => {
-  // Questions are almost always follow-ups
-  if (text.endsWith("?")) return false;
-
-  // Longer messages are likely follow-ups/commentary
-  if (text.length > 80) return false;
-
-  // Short messages with few words are likely place names
-  const wordCount = text.split(/\s+/).length;
-  if (wordCount <= 5) return true;
-
-  return false;
 };
