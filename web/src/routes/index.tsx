@@ -210,12 +210,12 @@ const Index = () => {
               {
                 step: "Step 01",
                 title: "Share a location",
-                body: "Paste any Google Maps link or type the name of the place directly into the Telegram chat.",
+                body: "Paste any link (Google Maps, Instagram, a blog) or type the name of the place directly into the Telegram chat.",
               },
               {
                 step: "Step 02",
                 title: "We read for you",
-                body: "Revie scans the most relevant recent reviews, filtering for honesty, detail, and specific mentions of what matters.",
+                body: "Revie scans the most relevant recent reviews and pulls in information from across the web, filtering for honesty, detail, and specific mentions of what matters.",
               },
               {
                 step: "Step 03",
