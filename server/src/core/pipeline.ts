@@ -4,6 +4,7 @@ import {
   getFilteredReviews,
 } from "../services/serpapi.js";
 import { chatCompletion, extractKnowledgeProfile } from "../services/llm.js";
+import { searchWebForPlace } from "../services/tavily.js";
 import { saveSession } from "../services/supabase.js";
 import { trackEvent } from "../services/analytics.js";
 import { PROMPTS } from "./prompts.js";
@@ -120,8 +121,11 @@ const processPlace = async (
       statusMsgId = msg?.message_id;
     }
 
-    // Step 2: Fetch reviews
-    const reviews = await getReviews(place);
+    // Step 2: Fetch reviews and web context
+    const [reviews, webContext] = await Promise.all([
+      getReviews(place),
+      searchWebForPlace(place.name, place.address),
+    ]);
     trackEvent(chatId, "place_selected", {
       name: place.name,
       rating: place.rating,
@@ -145,7 +149,7 @@ const processPlace = async (
     }
 
     // Step 4: Generate summary via LLM
-    const prompt = PROMPTS.initialSummary(place, reviews);
+    const prompt = PROMPTS.initialSummary(place, reviews, webContext);
     const messages: Message[] = [
       { role: "system", content: prompt.system },
       { role: "user", content: prompt.user },
@@ -161,7 +165,7 @@ const processPlace = async (
     try {
       knowledgeProfile = await extractKnowledgeProfile(
         place.name,
-        formattedReviews,
+        formattedReviews + (webContext ? `\n\nWeb info:\n${webContext}` : ""),
       );
     } catch (err) {
       console.error(
@@ -290,22 +294,26 @@ const buildHeroCard = (place: Place, summary: string): string => {
 };
 
 const buildHeroKeyboard = (place: Place): InlineButton[][] => {
+  const pId = place.place_id || place.data_id || "none";
   const keyboard: InlineButton[][] = [
     [
       {
         text: "🍽️ How's the food?",
-        callback_data: "ask:How is the food quality?",
+        callback_data: `ask:${pId}:How is the food quality?`,
       },
-      { text: "💸 Is it expensive?", callback_data: "ask:Is it expensive?" },
+      {
+        text: "💸 Is it expensive?",
+        callback_data: `ask:${pId}:Is it expensive?`,
+      },
     ],
     [
       {
         text: "👨‍👩‍👧‍👦 Good for families?",
-        callback_data: "ask:Is it good for families?",
+        callback_data: `ask:${pId}:Is it good for families?`,
       },
       {
         text: "⏰ Best time to go?",
-        callback_data: "ask:What is the best time to visit?",
+        callback_data: `ask:${pId}:What is the best time to visit?`,
       },
     ],
     [
@@ -313,7 +321,7 @@ const buildHeroKeyboard = (place: Place): InlineButton[][] => {
         ? [
             {
               text: "🗺️ Open in Google Maps",
-              url: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
+              url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}`,
             },
           ]
         : []),
