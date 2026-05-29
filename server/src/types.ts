@@ -1,7 +1,5 @@
 export type State = "IDLE" | "AWAITING_SELECTION" | "CHATTING";
 
-export type Intent = "new_search" | "followup" | "command";
-
 export type Review = {
   author: string;
   rating: number;
@@ -19,8 +17,10 @@ export type Place = {
 };
 
 export type Message = {
-  role: "user" | "assistant" | "system";
-  content: string;
+  role: "user" | "assistant" | "system" | "tool";
+  content: string | null;
+  tool_calls?: any[];
+  tool_call_id?: string;
 };
 
 export type Session = {
