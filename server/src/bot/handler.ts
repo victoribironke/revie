@@ -2,13 +2,15 @@ import { getSession } from "../services/supabase.js";
 import { handleCommand } from "./commands.js";
 import { newSearch, followUp, handlePlaceSelection } from "../core/pipeline.js";
 import { sendTyping, sendError, answerCallbackQuery } from "./sender.js";
-import { clearSession } from "../services/supabase.js";
+import { clearSession, saveSession } from "../services/supabase.js";
 import { sendMessage } from "./sender.js";
 import { trackEvent } from "../services/analytics.js";
 import {
-  classifyIntent,
+  chatWithTools,
   extractPlaceFromUrl as extractPlaceWithLLM,
 } from "../services/llm.js";
+import { PROMPTS } from "../core/prompts.js";
+import type { Message } from "../types.js";
 
 /**
  * Main entry point for all Telegram webhook updates.
@@ -100,7 +102,9 @@ const handleCallbackQuery = async (callback: any) => {
 };
 
 /**
- * Handles text messages — routes by session state (state machine).
+ * Handles text messages using LLM tool calling.
+ * Instead of classifying intent, we let the LLM decide whether to
+ * call a tool (search_place) or respond conversationally.
  */
 const handleMessage = async (message: any) => {
   const chatId = message.chat.id;
@@ -118,7 +122,7 @@ const handleMessage = async (message: any) => {
 
   await sendTyping(chatId);
 
-  // Path A: URL Detected
+  // Path A: URL Detected — handle separately (no tool calling needed)
   const genericUrlMatch = text.match(/(https?:\/\/[^\s]+)/);
   if (genericUrlMatch) {
     const url = genericUrlMatch[1]!;
@@ -137,30 +141,79 @@ const handleMessage = async (message: any) => {
     }
   }
 
+  // Path B: Tool-calling flow for all other text
   const session = await getSession(chatId);
 
-  // Use LLM to classify intent
-  const { intent, refinedQuery } = await classifyIntent(text);
+  // Build system prompt with session context (place info + knowledge profile)
+  const systemPrompt = PROMPTS.botSystem(session);
 
-  if (intent === "greeting") {
-    await sendMessage(
-      chatId,
-      "👋 Hello! I'm Revie. Send me a place name or link, and I'll summarize its reviews for you. You can also ask me specific questions about it!",
-    );
+  // Build conversation history from session
+  const history: Message[] = [];
+  if (session?.messages && session.messages.length > 0) {
+    // Only include simple user/assistant messages in history (skip tool-call messages)
+    for (const msg of session.messages.slice(-18)) {
+      if (
+        (msg.role === "user" || msg.role === "assistant") &&
+        msg.content &&
+        !msg.tool_calls
+      ) {
+        history.push({ role: msg.role, content: msg.content });
+      }
+    }
+  }
+
+  const messages: Message[] = [
+    { role: "system", content: systemPrompt },
+    ...history,
+    { role: "user", content: text },
+  ];
+
+  // Track whether a search was triggered by the tool call
+  let searchTriggered = false;
+
+  // Call LLM with tool definitions
+  const response = await chatWithTools(messages, async (toolName, toolArgs) => {
+    if (toolName === "search_place") {
+      const query = toolArgs.query;
+      if (query) {
+        searchTriggered = true;
+        // Execute the search pipeline (this sends its own messages to the user)
+        await newSearch(chatId, query);
+        return `Search initiated for "${query}". The results have been sent to the user directly.`;
+      }
+      return "No query provided for search.";
+    }
+    return `Unknown tool: ${toolName}`;
+  });
+
+  // If a search was triggered, the pipeline already sent messages to the user.
+  // The LLM's text response after the tool call is just an acknowledgment — skip it.
+  if (searchTriggered) {
+    // Save the user's message to the session for context continuity
+    // (the pipeline's newSearch/processPlace will create its own session)
     return;
   }
 
-  if (intent === "search_place") {
-    await newSearch(chatId, refinedQuery || text);
-    return;
+  // No tool was called — the LLM responded conversationally.
+  // Save the exchange to session history if we're in a chatting session.
+  if (session?.state === "CHATTING" && session.current_place) {
+    const updatedMessages = [...(session.messages || [])];
+    updatedMessages.push({ role: "user", content: text });
+    updatedMessages.push({ role: "assistant", content: response });
+
+    // Cap history to last 20 messages
+    const cappedMessages = updatedMessages.slice(-20);
+
+    await saveSession({
+      ...session,
+      messages: cappedMessages,
+    });
+
+    trackEvent(chatId, "follow_up", { place: session.current_place?.name });
   }
 
-  if (session && session.state === "CHATTING" && session.current_place) {
-    await followUp(chatId, text, session);
-  } else {
-    // Treat as search if we have no active session but the LLM thought it was a follow-up
-    await newSearch(chatId, refinedQuery || text);
-  }
+  // Send the conversational response
+  await sendMessage(chatId, response);
 };
 
 const extractQueryFromUrl = async (url: string): Promise<string | null> => {
