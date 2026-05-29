@@ -188,9 +188,8 @@ const handleMessage = async (message: any) => {
 
   // If a search was triggered, the pipeline already sent messages to the user.
   // The LLM's text response after the tool call is just an acknowledgment — skip it.
-  if (searchTriggered) {
-    // Save the user's message to the session for context continuity
-    // (the pipeline's newSearch/processPlace will create its own session)
+  // Also skip if response is empty (from recovered tool_use_failed errors).
+  if (searchTriggered || !response) {
     return;
   }
 
