@@ -9,6 +9,126 @@ const openai = new OpenAI({
   maxRetries: 3,
 });
 
+// ─── Tool Definitions ───────────────────────────────────────────
+
+const TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "search_place",
+      description:
+        "Search for a restaurant, cafe, hotel, or other place on Google Maps to get its reviews and information. Use this when the user wants to look up a specific place or find places matching a description.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "The name or description of the place to search for (e.g. 'Terra Kulture Lagos', 'best pizza in Lekki')",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+];
+
+// ─── Tool-Calling Chat ─────────────────────────────────────────
+
+/**
+ * Send messages to the LLM with tool definitions.
+ * Handles the tool-call loop: if the LLM calls a tool, we execute it
+ * via the provided callback, feed the result back, and repeat until
+ * the LLM returns a final text response.
+ *
+ * @param messages - Conversation messages (system + history + user)
+ * @param onToolCall - Callback to execute a tool call. Returns a string result.
+ * @param maxIterations - Safety cap on tool call rounds (default 3)
+ * @returns The LLM's final text response
+ */
+export const chatWithTools = async (
+  messages: Message[],
+  onToolCall: (name: string, args: Record<string, any>) => Promise<string>,
+  maxIterations = 3,
+): Promise<string> => {
+  // Work with a mutable copy so we can append tool results
+  const conversationMessages = [...messages];
+
+  for (let i = 0; i < maxIterations; i++) {
+    const response = await openai.chat.completions.create({
+      model: CHAT_MODEL,
+      messages: conversationMessages as any,
+      tools: TOOL_DEFINITIONS,
+      temperature: 0.7,
+      max_tokens: 600,
+    });
+
+    const choice = response.choices[0];
+    if (!choice) {
+      return "Sorry, I couldn't generate a response.";
+    }
+
+    const assistantMessage = choice.message;
+
+    // If no tool calls, we have our final text response
+    if (
+      !assistantMessage.tool_calls ||
+      assistantMessage.tool_calls.length === 0
+    ) {
+      return (
+        assistantMessage.content?.trim() ||
+        "Sorry, I couldn't generate a response."
+      );
+    }
+
+    // Append the assistant's tool-call message to the conversation
+    conversationMessages.push({
+      role: "assistant",
+      content: assistantMessage.content || null,
+      tool_calls: assistantMessage.tool_calls,
+    });
+
+    // Execute each tool call and append results
+    for (const toolCall of assistantMessage.tool_calls) {
+      const functionName = toolCall.function.name;
+      let functionArgs: Record<string, any>;
+      try {
+        functionArgs = JSON.parse(toolCall.function.arguments);
+      } catch {
+        functionArgs = {};
+      }
+
+      let result: string;
+      try {
+        result = await onToolCall(functionName, functionArgs);
+      } catch (err) {
+        result = `Error executing ${functionName}: ${err instanceof Error ? err.message : "Unknown error"}`;
+      }
+
+      conversationMessages.push({
+        role: "tool",
+        content: result,
+        tool_call_id: toolCall.id,
+      });
+    }
+  }
+
+  // If we exhausted iterations, make one final call without tools to get a response
+  const finalResponse = await openai.chat.completions.create({
+    model: CHAT_MODEL,
+    messages: conversationMessages as any,
+    temperature: 0.7,
+    max_tokens: 600,
+  });
+
+  return (
+    finalResponse.choices[0]?.message?.content?.trim() ||
+    "Sorry, I couldn't generate a response."
+  );
+};
+
+// ─── Standard Chat Completion (for summaries, etc.) ─────────────
+
 export const chatCompletion = async (messages: Message[]): Promise<string> => {
   const response = await openai.chat.completions.create({
     model: CHAT_MODEL,
@@ -22,6 +142,8 @@ export const chatCompletion = async (messages: Message[]): Promise<string> => {
     "Sorry, I couldn't generate a response."
   );
 };
+
+// ─── Knowledge Profile Extraction ───────────────────────────────
 
 export const extractKnowledgeProfile = async (
   placeName: string,
@@ -50,39 +172,7 @@ Return ONLY valid JSON, no other text.`,
   return response.choices[0]?.message?.content?.trim() || "{}";
 };
 
-export const classifyIntent = async (
-  text: string,
-): Promise<{
-  intent: "greeting" | "search_place" | "follow_up_question";
-  refinedQuery?: string;
-}> => {
-  const response = await openai.chat.completions.create({
-    model: CHAT_MODEL,
-    messages: [
-      {
-        role: "system",
-        content: `Classify the user's message into one of three categories: "greeting", "search_place", or "follow_up_question". 
-- If it's a greeting like "hi", "hello", "hey", classify as "greeting".
-- If it seems like the user is asking a question about a place they are currently viewing (e.g., "is it expensive?", "what's the menu?", "how's the vibe"), classify as "follow_up_question".
-- If it's a new place they want to look up (e.g., "terra kulture", "Mama Igbeji places", "find me a good cafe"), classify as "search_place".
-Return a JSON object with the "intent" string. If the intent is "search_place", also include a "refinedQuery" string that extracts just the name of the place to search for. Return ONLY valid JSON.`,
-      },
-      { role: "user", content: text },
-    ],
-    temperature: 0,
-    response_format: { type: "json_object" },
-  });
-
-  try {
-    const res = JSON.parse(response.choices[0]?.message?.content || "{}");
-    return {
-      intent: res.intent || "search_place",
-      refinedQuery: res.refinedQuery || text,
-    };
-  } catch (e) {
-    return { intent: "search_place", refinedQuery: text };
-  }
-};
+// ─── URL Place Extraction ───────────────────────────────────────
 
 export const extractPlaceFromUrl = async (
   url: string,
