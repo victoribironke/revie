@@ -36,6 +36,26 @@ const TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 // ─── Tool-Calling Chat ─────────────────────────────────────────
 
 /**
+ * Parse Llama's raw function call format when Groq fails to parse it.
+ * Handles formats like:
+ *   <function=search_place {"query": "Nike Art Gallery in Lagos"} </function>
+ *   <function=search_place{"query": "Nike Art Gallery in Lagos"}</function>
+ */
+const parseFailedGeneration = (
+  text: string,
+): { name: string; args: Record<string, any> } | null => {
+  const match = text.match(/<function=(\w+)\s*(\{.*?\})\s*<\/function>/s);
+  if (!match || !match[1] || !match[2]) return null;
+
+  try {
+    const args = JSON.parse(match[2]);
+    return { name: match[1], args };
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Send messages to the LLM with tool definitions.
  * Handles the tool-call loop: if the LLM calls a tool, we execute it
  * via the provided callback, feed the result back, and repeat until
@@ -55,13 +75,45 @@ export const chatWithTools = async (
   const conversationMessages = [...messages];
 
   for (let i = 0; i < maxIterations; i++) {
-    const response = await openai.chat.completions.create({
-      model: CHAT_MODEL,
-      messages: conversationMessages as any,
-      tools: TOOL_DEFINITIONS,
-      temperature: 0.7,
-      max_tokens: 600,
-    });
+    let response;
+    try {
+      response = await openai.chat.completions.create({
+        model: CHAT_MODEL,
+        messages: conversationMessages as any,
+        tools: TOOL_DEFINITIONS,
+        temperature: 0.7,
+        max_tokens: 600,
+      });
+    } catch (err: any) {
+      // Handle Groq/Llama tool_use_failed error — the model outputs tool calls
+      // in raw Llama format (<function=name {args} </function>) instead of
+      // structured JSON. Parse the failed_generation and execute the tool directly.
+      if (
+        err?.error?.code === "tool_use_failed" &&
+        err?.error?.failed_generation
+      ) {
+        const parsed = parseFailedGeneration(err.error.failed_generation);
+        if (parsed) {
+          try {
+            await onToolCall(parsed.name, parsed.args);
+            return ""; // Tool was executed (e.g. newSearch sent its own messages)
+          } catch (toolErr) {
+            return "Sorry, I ran into an issue while searching. Please try again.";
+          }
+        }
+      }
+      // If we can't parse the failed generation, retry without tools
+      const fallbackResponse = await openai.chat.completions.create({
+        model: CHAT_MODEL,
+        messages: conversationMessages as any,
+        temperature: 0.7,
+        max_tokens: 600,
+      });
+      return (
+        fallbackResponse.choices[0]?.message?.content?.trim() ||
+        "Sorry, I couldn't generate a response."
+      );
+    }
 
     const choice = response.choices[0];
     if (!choice) {
