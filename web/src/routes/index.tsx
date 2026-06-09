@@ -323,18 +323,20 @@ const Index = () => {
               </a>
             </p>
             <div className="flex gap-8">
+              <a
+                href="https://github.com/victoribironke/revie"
+                className="text-[12px] text-[#8c847d] hover:text-accent transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                GitHub
+              </a>
               <Link
                 to="/privacy"
                 className="text-[12px] text-[#8c847d] hover:text-accent transition-colors"
               >
                 Privacy
               </Link>
-              {/* <a
-                href="#"
-                className="text-[12px] text-[#8c847d] hover:text-accent transition-colors"
-              >
-                Terms
-              </a>*/}
               <a
                 href="mailto:hello@victoribironke.com"
                 className="text-[12px] text-[#8c847d] hover:text-accent transition-colors"
