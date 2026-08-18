@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { Message } from "../types.js";
 
-const CHAT_MODEL = "llama-3.3-70b-versatile";
+const CHAT_MODEL = "openai/gpt-oss-20b";
 
 const openai = new OpenAI({
   baseURL: "https://api.groq.com/openai/v1",
@@ -17,14 +17,38 @@ const TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "search_place",
       description:
-        "Search for a restaurant, cafe, hotel, or other place on Google Maps to get its reviews and information. Use this when the user wants to look up a specific place or find places matching a description.",
+        "Search for a specific restaurant, cafe, hotel, or other venue by its name to get its reviews and information (e.g. 'Terra Kulture Lagos', 'Cafe Neo Victoria Island'). Use this ONLY when the user mentions a specific known place name or wants to inspect one particular venue.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
             description:
-              "The name or description of the place to search for (e.g. 'Terra Kulture Lagos', 'best pizza in Lekki')",
+              "The specific place name to search for (e.g. 'Terra Kulture Lagos', 'Eko Hotel').",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "recommend_places",
+      description:
+        "Recommend a curated list of top-rated places matching a category, vibe, cuisine, or location (e.g. 'good cafe spots in Lagos', 'best rooftop bars in Victoria Island', 'cheap pizza in Lekki', 'romantic dinner spots in Abuja'). Use this whenever the user is looking for recommendations, suggestions, or discovering multiple spots.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "The search query for Google Maps (e.g. 'cafes in Lagos', 'rooftop bars in Victoria Island', 'pizza in Lekki').",
+          },
+          criteria: {
+            type: "string",
+            description:
+              "Optional specific vibe or preferences requested by user (e.g. 'good for remote work and wifi', 'outdoor seating', 'budget-friendly').",
           },
         },
         required: ["query"],
