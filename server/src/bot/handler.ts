@@ -1,6 +1,12 @@
 import { getSession } from "../services/supabase.js";
 import { handleCommand } from "./commands.js";
-import { newSearch, followUp, handlePlaceSelection } from "../core/pipeline.js";
+import {
+  newSearch,
+  recommendPlaces,
+  showRecommendationList,
+  followUp,
+  handlePlaceSelection,
+} from "../core/pipeline.js";
 import { sendTyping, sendError, answerCallbackQuery } from "./sender.js";
 import { clearSession, saveSession } from "../services/supabase.js";
 import { sendMessage } from "./sender.js";
@@ -50,6 +56,15 @@ const handleCallbackQuery = async (callback: any) => {
 
   if (!chatId) return;
 
+  // Route: Back to recommendation list
+  if (callbackData === "back_to_recommendations") {
+    const session = await getSession(chatId);
+    if (session) {
+      await showRecommendationList(chatId, session, messageId);
+    }
+    return;
+  }
+
   // Parse callback data
   if (callbackData.startsWith("select_place:")) {
     const index = parseInt(callbackData.split(":")[1] || "0", 10);
@@ -75,7 +90,7 @@ const handleCallbackQuery = async (callback: any) => {
     trackEvent(chatId, "session_cleared");
     await sendMessage(
       chatId,
-      "Session cleared! Send a place name to start fresh. 🔍",
+      "Session cleared! Send a place name or ask for recommendations to start fresh. 🔍",
     );
     return;
   }
@@ -103,8 +118,8 @@ const handleCallbackQuery = async (callback: any) => {
 
 /**
  * Handles text messages using LLM tool calling.
- * Instead of classifying intent, we let the LLM decide whether to
- * call a tool (search_place) or respond conversationally.
+ * Instead of classifying intent manually, we let the LLM decide whether to
+ * call search_place, recommend_places, or respond conversationally.
  */
 const handleMessage = async (message: any) => {
   const chatId = message.chat.id;
@@ -113,9 +128,13 @@ const handleMessage = async (message: any) => {
   // Commands always take priority
   if (text.startsWith("/")) {
     const result = await handleCommand(chatId, text);
-    // If /search returned a query, route it to newSearch
     if (result?.action === "search") {
       await newSearch(chatId, result.query);
+      return;
+    }
+    if (result?.action === "recommend") {
+      await recommendPlaces(chatId, result.query);
+      return;
     }
     return;
   }
@@ -144,7 +163,7 @@ const handleMessage = async (message: any) => {
   // Path B: Tool-calling flow for all other text
   const session = await getSession(chatId);
 
-  // Build system prompt with session context (place info + knowledge profile)
+  // Build system prompt with session context (place info or recommendations)
   const systemPrompt = PROMPTS.botSystem(session);
 
   // Build conversation history from session
@@ -168,15 +187,26 @@ const handleMessage = async (message: any) => {
     { role: "user", content: text },
   ];
 
-  // Track whether a search was triggered by the tool call
-  let searchTriggered = false;
+  // Track whether a search or recommendation was triggered by the tool call
+  let actionTriggered = false;
 
   // Call LLM with tool definitions
   const response = await chatWithTools(messages, async (toolName, toolArgs) => {
+    if (toolName === "recommend_places") {
+      const query = toolArgs.query;
+      const criteria = toolArgs.criteria;
+      if (query) {
+        actionTriggered = true;
+        await recommendPlaces(chatId, query, criteria);
+        return `Recommendations initiated for "${query}". The results have been sent to the user directly.`;
+      }
+      return "No query provided for recommendations.";
+    }
+
     if (toolName === "search_place") {
       const query = toolArgs.query;
       if (query) {
-        searchTriggered = true;
+        actionTriggered = true;
         // Execute the search pipeline (this sends its own messages to the user)
         await newSearch(chatId, query);
         return `Search initiated for "${query}". The results have been sent to the user directly.`;
@@ -186,16 +216,19 @@ const handleMessage = async (message: any) => {
     return `Unknown tool: ${toolName}`;
   });
 
-  // If a search was triggered, the pipeline already sent messages to the user.
+  // If a search or recommendation was triggered, the pipeline already sent messages to the user.
   // The LLM's text response after the tool call is just an acknowledgment — skip it.
   // Also skip if response is empty (from recovered tool_use_failed errors).
-  if (searchTriggered || !response) {
+  if (actionTriggered || !response) {
     return;
   }
 
   // No tool was called — the LLM responded conversationally.
-  // Save the exchange to session history if we're in a chatting session.
-  if (session?.state === "CHATTING" && session.current_place) {
+  // Save the exchange to session history if we're in a chatting or recommending session.
+  if (
+    (session?.state === "CHATTING" && session.current_place) ||
+    (session?.state === "RECOMMENDING" && session.pending_places)
+  ) {
     const updatedMessages = [...(session.messages || [])];
     updatedMessages.push({ role: "user", content: text });
     updatedMessages.push({ role: "assistant", content: response });
@@ -208,7 +241,9 @@ const handleMessage = async (message: any) => {
       messages: cappedMessages,
     });
 
-    trackEvent(chatId, "follow_up", { place: session.current_place?.name });
+    if (session.state === "CHATTING") {
+      trackEvent(chatId, "follow_up", { place: session.current_place?.name });
+    }
   }
 
   // Send the conversational response
