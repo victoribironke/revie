@@ -1,4 +1,4 @@
-export type State = "IDLE" | "AWAITING_SELECTION" | "CHATTING";
+export type State = "IDLE" | "AWAITING_SELECTION" | "RECOMMENDING" | "CHATTING";
 
 export type Review = {
   author: string;
@@ -14,6 +14,10 @@ export type Place = {
   address: string;
   rating: number;
   reviews_count: number;
+  category?: string;
+  price?: string;
+  snippet?: string;
+  highlight?: string;
 };
 
 export type Message = {
@@ -30,6 +34,7 @@ export type Session = {
   knowledge_profile: string | null;
   messages: Message[];
   pending_places: Place[] | null;
+  recommendation_query?: string | null;
   updated_at?: string;
 };
 
