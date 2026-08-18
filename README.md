@@ -1,15 +1,17 @@
 # Revie
 
-A Telegram bot that summarizes Google Maps reviews and web context using AI. Paste any link (Google Maps, Instagram, website) or type a place name — Revie fetches real reviews and broader web info, generates a comprehensive summary, and lets you ask conversational follow-up questions about the place.
+A Telegram bot that provides AI-powered place recommendations and summarizes Google Maps reviews. Ask for recommendations (e.g., _"good cafe spots in Lagos"_, _"best rooftop bars in VI"_), paste any link (Google Maps, Instagram, website), or type a place name — Revie finds top spots, fetches real reviews and broader web info, generates structured summaries, and lets you chat conversationally with the reviews of each place.
 
 ## How It Works
 
-1. User sends a place name or any web link (Google Maps, Instagram, etc.)
-2. Revie extracts the place intent using LLM classification and finds the place via [SerpAPI](https://serpapi.com)
-3. Fetches real reviews from Google Maps and broader context via [Tavily](https://tavily.com)
-4. Uses [Groq](https://groq.com) (Llama 3.3 70B) to generate a structured summary
-5. Builds a knowledge profile using both reviews and web info
-6. User can chat conversationally and ask unlimited follow-up questions
+1. **Recommendation / Search**: User asks for recommendations (e.g., _"recommend good cafes in Lagos"_) or sends a specific place / link.
+2. **AI Tool Calling**: LLM detects intent and triggers either `recommend_places` or `search_place`.
+3. **SerpAPI Ranking & Google Maps**:
+   - For recommendations: SerpAPI fetches local results, ranks candidates by rating quality and review volume, and presents a curated list with inline buttons.
+   - For specific searches: Finds the place directly or offers disambiguation buttons.
+4. **Deep-Dive Review Summary**: Tapping any place fetches real Google Maps reviews and broader web context via [Tavily](https://tavily.com).
+5. **AI Synthesis**: [Groq](https://groq.com) (Llama 3.3 70B) generates a structured Hero summary and builds a structured knowledge profile.
+6. **Chat with Reviews**: User can ask conversational follow-up questions about WiFi, vibe, price, parking, or easily navigate back to the recommendation list.
 
 ## Project Structure
 
@@ -19,15 +21,15 @@ A Telegram bot that summarizes Google Maps reviews and web context using AI. Pas
 │       ├── index.ts           # HTTP server + webhook handler
 │       ├── types.ts           # Shared type definitions
 │       ├── bot/
-│       │   ├── handler.ts     # Telegram update router (state machine)
-│       │   ├── commands.ts    # /start, /help, /end, /search
+│       │   ├── handler.ts     # Telegram update router (state machine & tool calls)
+│       │   ├── commands.ts    # /start, /help, /recommend, /search, /end
 │       │   └── sender.ts     # Telegram API helpers
 │       ├── core/
-│       │   ├── pipeline.ts    # Main flow: search → reviews → summarize
+│       │   ├── pipeline.ts    # Recommendations, search, reviews, and summarize
 │       │   └── prompts.ts    # LLM prompt templates
 │       ├── services/
-│       │   ├── serpapi.ts     # Google Maps place + review fetching
-│       │   ├── llm.ts        # Groq/LLM client
+│       │   ├── serpapi.ts     # Google Maps place + review + recommendation fetching
+│       │   ├── llm.ts        # Groq/LLM client & tool calling
 │       │   ├── supabase.ts   # Session persistence
 │       │   └── analytics.ts  # Usage event tracking
 │       └── lib/
@@ -75,6 +77,7 @@ create table sessions (
   knowledge_profile text,
   messages jsonb not null default '[]',
   pending_places jsonb,
+  recommendation_query text,
   updated_at timestamptz default now()
 );
 ```
@@ -107,6 +110,7 @@ bun run src/index.ts
 The server is deployed to **Google Cloud Run** via GitHub Actions. Pushing to `master` with changes in `server/` triggers a build and deploy automatically.
 
 The workflow (`.github/workflows/deploy.yml`) handles:
+
 1. Building the Docker image
 2. Pushing to Google Container Registry
 3. Deploying to Cloud Run
@@ -114,21 +118,23 @@ The workflow (`.github/workflows/deploy.yml`) handles:
 
 ### Required GitHub Secrets
 
-| Secret | Description |
-|--------|-------------|
-| `GCP_SA_KEY` | GCP service account key (JSON) |
-| `GROQ_API_KEY` | Groq API key |
-| `SERPAPI_KEY` | SerpAPI key |
-| `TAVILY_API_KEY` | Tavily API key |
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token from BotFather |
-| `TELEGRAM_WEBHOOK_SECRET` | Random string for webhook verification |
+| Secret                      | Description                            |
+| --------------------------- | -------------------------------------- |
+| `GCP_SA_KEY`                | GCP service account key (JSON)         |
+| `GROQ_API_KEY`              | Groq API key                           |
+| `SERPAPI_KEY`               | SerpAPI key                            |
+| `TAVILY_API_KEY`            | Tavily API key                         |
+| `SUPABASE_URL`              | Supabase project URL                   |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key              |
+| `TELEGRAM_BOT_TOKEN`        | Telegram bot token from BotFather      |
+| `TELEGRAM_WEBHOOK_SECRET`   | Random string for webhook verification |
 
 ## Analytics
 
-Events are logged to the `events` table in Supabase. Four event types are tracked:
-- `search` — user searched for a place
+Events are logged to the `events` table in Supabase. Five event types are tracked:
+
+- `search` — user searched for a specific place
+- `recommendation` — user asked for place recommendations
 - `place_selected` — reviews were fetched for a place
 - `follow_up` — user asked a follow-up question
 - `session_cleared` — user ended their session
@@ -150,7 +156,7 @@ where created_at > now() - interval '7 days'
 group by event order by count desc;
 ```
 
-**Most searched places:**
+**Most searched & recommended places:**
 
 ```sql
 select metadata->>'name' as place, count(*) from events
@@ -175,10 +181,12 @@ group by query order by count desc limit 10;
 
 ## Bot Commands
 
-| Command | Description |
-|---------|-------------|
-| `/start` | Welcome message + instructions |
-| `/help` | Show available commands |
-| `/search <place>` | Search for a place by name |
-| `/newsearch <place>` | Same as `/search` |
-| `/end` | Clear session and start fresh |
+| Command                 | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `/start`                | Welcome message + instructions            |
+| `/help`                 | Show available commands                   |
+| `/recommend <category>` | Get ranked recommendations in a city/area |
+| `/suggest <category>`   | Same as `/recommend`                      |
+| `/search <place>`       | Search for a place by name                |
+| `/newsearch <place>`    | Same as `/search`                         |
+| `/end`                  | Clear session and start fresh             |
