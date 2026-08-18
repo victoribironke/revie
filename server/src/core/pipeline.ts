@@ -1,5 +1,6 @@
 import {
   findPlaces,
+  findRecommendations,
   getReviews,
   getFilteredReviews,
 } from "../services/serpapi.js";
@@ -15,6 +16,103 @@ import {
   escapeHtml,
 } from "../bot/sender.js";
 import type { Session, Place, Message, InlineButton } from "../types.js";
+
+// ─── Recommendations ─────────────────────────────────────────────
+
+export const recommendPlaces = async (
+  chatId: number,
+  query: string,
+  criteria?: string,
+) => {
+  // Step 1: Send progressive status message
+  const statusMsg = await sendMessage(
+    chatId,
+    `🔍 Finding top recommendations for "<b>${escapeHtml(query)}</b>"...`,
+  );
+  const statusMsgId = statusMsg?.message_id;
+
+  try {
+    // Step 2: Fetch recommendations from SerpAPI
+    const places = await findRecommendations(query);
+    trackEvent(chatId, "recommendation", {
+      query,
+      criteria,
+      results: places.length,
+    });
+
+    if (places.length === 0) {
+      const notFoundText = `I couldn't find good recommendations for "<b>${escapeHtml(query)}</b>". Try adding a city or area — for example, <i>"cafes in Victoria Island Lagos"</i>.`;
+      if (statusMsgId) {
+        await editMessage(chatId, statusMsgId, notFoundText);
+      } else {
+        await sendMessage(chatId, notFoundText);
+      }
+      return;
+    }
+
+    // Step 3: Format recommendation card and keyboard
+    const card = formatRecommendationCard(query, places, criteria);
+    const keyboard = formatRecommendationKeyboard(places);
+
+    // Save session with RECOMMENDING state and pending places
+    await saveSession({
+      chat_id: chatId,
+      state: "RECOMMENDING",
+      current_place: null,
+      knowledge_profile: null,
+      messages: [],
+      pending_places: places,
+      recommendation_query: query,
+    });
+
+    if (statusMsgId) {
+      await editMessage(chatId, statusMsgId, card, keyboard);
+    } else {
+      await sendMessageWithKeyboard(chatId, card, keyboard);
+    }
+  } catch (error) {
+    console.error("recommendPlaces error:", error);
+    const errorText =
+      "Something went wrong while finding recommendations. Please try again.";
+    if (statusMsgId) {
+      await editMessage(chatId, statusMsgId, errorText);
+    } else {
+      await sendMessage(chatId, errorText);
+    }
+  }
+};
+
+export const showRecommendationList = async (
+  chatId: number,
+  session: Session,
+  messageId?: number,
+) => {
+  if (!session.pending_places || session.pending_places.length === 0) {
+    await sendMessage(
+      chatId,
+      "No active recommendation list found. Send what you are looking for to get recommendations!",
+    );
+    return;
+  }
+
+  const query = session.recommendation_query || "Recommendations";
+  const card = formatRecommendationCard(query, session.pending_places);
+  const keyboard = formatRecommendationKeyboard(session.pending_places);
+
+  await saveSession({
+    ...session,
+    state: "RECOMMENDING",
+    current_place: null,
+    knowledge_profile: null,
+    messages: [],
+  });
+
+  if (messageId) {
+    await editMessage(chatId, messageId, card, keyboard);
+  } else {
+    await sendMessageWithKeyboard(chatId, card, keyboard);
+  }
+};
 
 // ─── New Search ──────────────────────────────────────────────────
 
@@ -72,6 +170,7 @@ export const newSearch = async (chatId: number, query: string) => {
       knowledge_profile: null,
       messages: [],
       pending_places: places,
+      recommendation_query: null,
     });
 
     if (statusMsgId) {
@@ -90,7 +189,7 @@ export const newSearch = async (chatId: number, query: string) => {
   }
 };
 
-// ─── Place Selection (from disambiguation buttons) ───────────────
+// ─── Place Selection (from disambiguation or recommendation buttons) ───────────────
 
 export const handlePlaceSelection = async (
   chatId: number,
@@ -101,7 +200,7 @@ export const handlePlaceSelection = async (
   const place = session.pending_places?.[index];
   if (!place) return;
 
-  await processPlace(chatId, place, messageId);
+  await processPlace(chatId, place, messageId, session);
 };
 
 // ─── Process Place (fetch reviews + summarize) ──────────────────
@@ -110,6 +209,7 @@ const processPlace = async (
   chatId: number,
   place: Place,
   statusMsgId?: number,
+  session?: Session | null,
 ) => {
   try {
     // Step 1: Update status
@@ -174,6 +274,10 @@ const processPlace = async (
       );
     }
 
+    const hasRecommendations = Boolean(
+      session?.pending_places && session.pending_places.length > 1,
+    );
+
     // Step 6: Save session
     await saveSession({
       chat_id: chatId,
@@ -181,12 +285,13 @@ const processPlace = async (
       current_place: place,
       knowledge_profile: knowledgeProfile,
       messages: [{ role: "assistant", content: summary }],
-      pending_places: null,
+      pending_places: session?.pending_places || null,
+      recommendation_query: session?.recommendation_query || null,
     });
 
     // Step 7: Build the Hero Card response
     const heroCard = buildHeroCard(place, summary);
-    const heroKeyboard = buildHeroKeyboard(place);
+    const heroKeyboard = buildHeroKeyboard(place, hasRecommendations);
 
     if (statusMsgId) {
       await editMessage(chatId, statusMsgId, heroCard, heroKeyboard);
@@ -279,6 +384,55 @@ export const followUp = async (
 
 // ─── Helpers ────────────────────────────────────────────────────
 
+const formatRecommendationCard = (
+  query: string,
+  places: Place[],
+  criteria?: string,
+): string => {
+  const lines = [`✨ <b>Top Recommendations for "${escapeHtml(query)}"</b>`];
+  if (criteria) {
+    lines.push(`<i>Criteria: ${escapeHtml(criteria)}</i>`);
+  }
+  lines.push("───");
+
+  places.forEach((p, idx) => {
+    const stars = "⭐".repeat(
+      Math.min(5, Math.max(1, Math.round(p.rating || 0))),
+    );
+    const metaParts = [];
+    if (p.rating > 0) metaParts.push(`${stars} ${p.rating}/5`);
+    if (p.reviews_count > 0) metaParts.push(`(${p.reviews_count} reviews)`);
+    if (p.category) metaParts.push(escapeHtml(p.category));
+    if (p.price) metaParts.push(escapeHtml(p.price));
+
+    lines.push(`<b>${idx + 1}. ${escapeHtml(p.name)}</b>`);
+    if (metaParts.length > 0) {
+      lines.push(metaParts.join(" • "));
+    }
+    if (p.address) {
+      lines.push(`🗺️ ${escapeHtml(p.address)}`);
+    }
+    if (p.snippet) {
+      lines.push(`<i>${escapeHtml(p.snippet)}</i>`);
+    }
+    lines.push("");
+  });
+
+  lines.push("👇 <i>Tap a place below to see review summaries and chat:</i>");
+  return lines.join("\n");
+};
+
+const formatRecommendationKeyboard = (places: Place[]): InlineButton[][] => {
+  const keyboard: InlineButton[][] = places.map((p, i) => [
+    {
+      text: `📖 ${p.name} ${p.rating ? `(⭐${p.rating})` : ""}`,
+      callback_data: `select_place:${i}`,
+    },
+  ]);
+  keyboard.push([{ text: "❌ Clear", callback_data: "clear_session" }]);
+  return keyboard;
+};
+
 const buildHeroCard = (place: Place, summary: string): string => {
   const ratingStars = "⭐".repeat(Math.round(place.rating));
   const lines = [
@@ -293,7 +447,10 @@ const buildHeroCard = (place: Place, summary: string): string => {
   return lines.join("\n");
 };
 
-const buildHeroKeyboard = (place: Place): InlineButton[][] => {
+const buildHeroKeyboard = (
+  place: Place,
+  hasRecommendations = false,
+): InlineButton[][] => {
   const pId = place.place_id || place.data_id || "none";
   const keyboard: InlineButton[][] = [
     [
@@ -326,8 +483,18 @@ const buildHeroKeyboard = (place: Place): InlineButton[][] => {
           ]
         : []),
     ],
-    [{ text: "❌ End Chat", callback_data: "clear_session" }],
   ];
+
+  const bottomRow: InlineButton[] = [];
+  if (hasRecommendations) {
+    bottomRow.push({
+      text: "⬅️ Back to List",
+      callback_data: "back_to_recommendations",
+    });
+  }
+  bottomRow.push({ text: "❌ End Chat", callback_data: "clear_session" });
+  keyboard.push(bottomRow);
+
   return keyboard;
 };
 
