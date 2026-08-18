@@ -1,6 +1,11 @@
 import { supabase } from "./supabase.js";
 
-type EventType = "search" | "place_selected" | "follow_up" | "session_cleared";
+type EventType =
+  | "search"
+  | "recommendation"
+  | "place_selected"
+  | "follow_up"
+  | "session_cleared";
 
 /**
  * Fire-and-forget event logger. Never throws — analytics
