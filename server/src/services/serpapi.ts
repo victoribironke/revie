@@ -22,6 +22,12 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
         address: response.place_results.address || "",
         rating: response.place_results.rating || 0,
         reviews_count: response.place_results.reviews || 0,
+        category: response.place_results.type || undefined,
+        price: response.place_results.price || undefined,
+        snippet:
+          response.place_results.description ||
+          response.place_results.snippet ||
+          undefined,
       };
       console.log("[findPlaces] place_results match:", {
         name: place.name,
@@ -39,6 +45,9 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
         address: result.address || "",
         rating: result.rating || 0,
         reviews_count: result.reviews || 0,
+        category: result.type || undefined,
+        price: result.price || undefined,
+        snippet: result.description || result.snippet || undefined,
       }));
       console.log(
         "[findPlaces] local_results matches:",
@@ -55,6 +64,91 @@ export const findPlaces = async (query: string): Promise<Place[]> => {
     return [];
   } catch (error) {
     console.error("SerpAPI findPlaces error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Searches Google Maps for recommendations matching a category, vibe, or location.
+ * Filters and ranks results based on rating quality and review volume.
+ */
+export const findRecommendations = async (
+  query: string,
+  limit = 4,
+): Promise<Place[]> => {
+  try {
+    const params = new URLSearchParams({
+      engine: "google_maps",
+      q: query,
+      api_key: SERPAPI_KEY,
+    });
+
+    const res = await fetch(`${SERPAPI_BASE}?${params}`);
+    const response = (await res.json()) as any;
+
+    let candidates: Place[] = [];
+
+    if (response.place_results) {
+      candidates.push({
+        data_id: response.place_results.data_id || undefined,
+        place_id: response.place_results.place_id || undefined,
+        name: response.place_results.title,
+        address: response.place_results.address || "",
+        rating: response.place_results.rating || 0,
+        reviews_count: response.place_results.reviews || 0,
+        category: response.place_results.type || undefined,
+        price: response.place_results.price || undefined,
+        snippet:
+          response.place_results.description ||
+          response.place_results.snippet ||
+          undefined,
+      });
+    }
+
+    if (response.local_results && response.local_results.length > 0) {
+      const mapped = response.local_results.map((result: any) => ({
+        data_id: result.data_id || undefined,
+        place_id: result.place_id || undefined,
+        name: result.title,
+        address: result.address || "",
+        rating: result.rating || 0,
+        reviews_count: result.reviews || 0,
+        category: result.type || undefined,
+        price: result.price || undefined,
+        snippet: result.description || result.snippet || undefined,
+      }));
+      candidates = candidates.concat(mapped);
+    }
+
+    if (candidates.length === 0) {
+      console.log("[findRecommendations] No results found for query:", query);
+      return [];
+    }
+
+    // Rank candidates:
+    // Bayesian-weighted score prioritizing high rating with credible review count
+    const ranked = candidates.sort((a, b) => {
+      const scoreA =
+        (a.rating || 0) * 2 + Math.log10(Math.max(1, a.reviews_count || 0));
+      const scoreB =
+        (b.rating || 0) * 2 + Math.log10(Math.max(1, b.reviews_count || 0));
+      return scoreB - scoreA;
+    });
+
+    const topPicks = ranked.slice(0, limit);
+    console.log(
+      "[findRecommendations] Top picks:",
+      topPicks.map((p) => ({
+        name: p.name,
+        rating: p.rating,
+        reviews: p.reviews_count,
+        category: p.category,
+      })),
+    );
+
+    return topPicks;
+  } catch (error) {
+    console.error("SerpAPI findRecommendations error:", error);
     throw error;
   }
 };
